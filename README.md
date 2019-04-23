@@ -1,0 +1,1 @@
+## paper for java magazin
