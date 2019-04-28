@@ -1,6 +1,6 @@
 module Cards where
 
-import Test.QuickCheck
+-- import Test.QuickCheck
 
 data Suit = Spades | Hearts | Diamonds | Clubs
   deriving (Show, Eq)
@@ -15,25 +15,35 @@ color Clubs = Black
 color Diamonds = Red
 color Hearts = Red
 
+-- |list of all suits
+allSuits :: [Suit]
+allSuits = [Spades, Hearts, Diamonds, Clubs]
+
 data Rank = Numeric Integer | Jack | Queen | King | Ace
   deriving (Show, Eq, Ord)
 
--- rankBeats r1 r2 returns True, if r1 beats r2
+-- |rankBeats r1 r2 returns True, if r1 beats r2
 rankBeats :: Rank -> Rank -> Bool
 rankBeats r1 r2 = r1 > r2
 
-prop_rankBeats :: Rank -> Rank -> Bool
-prop_rankBeats r1 r2 = rankBeats r1 r2 == rankBeats' r1 r2
-
+-- |list of all ranks
+allRanks :: [Rank]
+allRanks = [Numeric i | i <- [2..10]] ++ [Jack, Queen, King, Ace]
 
 -- |playing cards
 data Card = Card { rank :: Rank, suit :: Suit }
   deriving (Show)
 
+-- |cardBeats c1 c2 returns True, if c1 beats c2: they have the same suit and c1's rank is higher
 cardBeats :: Card -> Card -> Bool
 cardBeats givenCard c = suit givenCard == suit c
                         && rankBeats (rank givenCard)
                                      (rank c)
+
+-- |full deck of all cards
+deck :: [Card]
+deck = [Card r s | r <- allRanks, s <- allSuits]
+
 -- |example cards
 aceOfSpades = Card Ace Spades
 tenOfHearts = Card (Numeric 10) Hearts
