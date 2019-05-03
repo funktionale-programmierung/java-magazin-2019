@@ -51,19 +51,18 @@ queenOfHearts = Card Queen Hearts
 jackOfClub = Card Jack Clubs
 
 -- |during the game, a hand contains at least one card
-data Hand = Last Card | Next Card Hand
-  deriving (Show)
+type Hand = [Card]
 
 -- choose a card from the hand that beats the given card if possible
 -- but it does not follow suit!
 chooseCard :: Card -> Hand -> Card
-chooseCard c (Last card) = card
-chooseCard c (Next card hand) =
+chooseCard c [card] = card
+chooseCard c (card:hand') =
     if cardBeats card c
     then card
-    else chooseCard c hand
+    else chooseCard c hand'
 
-exampleHand = Next jackOfClub (Next queenOfHearts (Next  tenOfHearts (Last aceOfSpades)))
+exampleHand = [jackOfClub, queenOfHearts, tenOfHearts, aceOfSpades]
 tenOfClubs = Card (Numeric 10) Clubs
 
 -- the Maybe type
@@ -76,17 +75,17 @@ chooseCard' c h =
 
 -- | take given card, current hand, and maybe a card of same suit as given card
 chooseCardFollowing :: Card -> Hand -> Maybe Card -> Card
-chooseCardFollowing c (Last card) Nothing = card
-chooseCardFollowing c (Last card) (Just cardSameSuit) =
+chooseCardFollowing c  [card] Nothing = card
+chooseCardFollowing c  [card] (Just cardSameSuit) =
     if cardBeats card c
     then card
     else cardSameSuit
-chooseCardFollowing c (Next card hand) m =
+chooseCardFollowing c (card:hand') m =
     if cardBeats card c
     then card
     else if suit c == suit card
-    then chooseCardFollowing c hand (Just card)
-    else chooseCardFollowing c hand m
+    then chooseCardFollowing c hand' (Just card)
+    else chooseCardFollowing c hand' m
 
 {- alternative way of writing this:
     else chooseCardFollowing c hand
