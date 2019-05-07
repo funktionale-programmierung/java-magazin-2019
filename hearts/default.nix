@@ -1,12 +1,11 @@
-{ nixpkgs ? import <nixpkgs> {} }:
-let
-  inherit (nixpkgs) pkgs;
-  ghc = nixpkgs.haskellPackages.ghcWithPackages (ps: with ps; [
-          MonadRandom
-        ]);
-in
-pkgs.stdenv.mkDerivation {
-  name = "des";
-  buildInputs = [ ghc ];
-  shellHook = "eval $(egrep ^export ${ghc}/bin/ghc)";
+{ mkDerivation, base, mtl, random, stdenv, transformers }:
+mkDerivation {
+  pname = "hearts";
+  version = "0.1.0.0";
+  src = ./.;
+  isLibrary = false;
+  isExecutable = true;
+  executableHaskellDepends = [ base mtl random transformers ];
+  homepage = "https://github.com/peterthiemann/hearts#readme";
+  license = stdenv.lib.licenses.bsd3;
 }
