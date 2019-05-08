@@ -7,6 +7,8 @@
 
 module Gameplay where
 
+import Control.Monad (when)
+
 import qualified Control.Monad.Writer (WriterT)
 import Control.Monad.Writer as Writer
   
@@ -33,20 +35,34 @@ whoTakesTrick trick =
   in loop player0 card0 rest
 
 
-data GameState = GameState { stateHands :: [(Player, Hand)],
-                             stateStacks :: [(Player, [Card])],
-                             stateTrick :: Trick }
+data GameState =
+  GameState 
+  { statePlayers :: [Player],   -- current player at front
+    stateHands :: [(Player, Hand)],
+    stateStacks :: [(Player, [Card])],
+    stateTrick :: Trick
+  }
+
+-- |rotate assumes length of input > 0
+rotate :: [a] -> [a]
+rotate (x : xs) = xs ++ [x]
+rotate [] = undefined
+
+-- |rotateTo assumes target exists in input of length > 0
+rotateTo :: Eq a => a -> [a] -> [a]
+rotateTo y xs@(x : xs') | x == y = xs
+                        | otherwise = rotateTo y (xs' ++ [x])
+rotateTo y [] = undefined
+
+-- PT: better modeling
+-- stateHands :: Data.Map Player Hand
+-- stateStacks :: Data.Map Player [Card]
+-- ... but it would require an extra mechanism to determine the sequence of players
 
 -- determine whose turn it is
-nextPlayer :: GameState -> Maybe Player
+nextPlayer :: GameState -> Player
 nextPlayer state =
-  case drop (length (stateTrick state)) (stateHands state) of
-    [] -> Nothing
-    (player, hand) : rest -> Just player
-
-isHandEmpty :: Hand -> Bool
-isHandEmpty [] = True
-isHandEmpty _ = False
+  head (statePlayers state)
 
 gameOver :: GameState -> Bool
 gameOver state = all (\ (player, hand) -> isHandEmpty hand) (stateHands state)
@@ -58,12 +74,6 @@ data GameEvent =
     HandsDealt [(Player, Hand)]
   | CardPlayed Player Card
   | TrickTaken Player
-
-removeCard :: Hand -> Card -> Hand
-removeCard [] _ = undefined
-removeCard (c':cs) c
-  | c == c' = cs
-  | otherwise = c' : removeCard cs c
 
 takeCard :: [(Player, Hand)] -> Player -> Card -> [(Player, Hand)]
 takeCard [] _ _ = undefined
@@ -79,15 +89,20 @@ addToStack ((player', stack):rest) player stack'
 
 processGameEvent :: GameState -> GameEvent -> GameState
 processGameEvent state (HandsDealt hands) =
-  GameState { stateHands = hands, stateStacks = [], stateTrick = [] }
+  GameState { statePlayers = map fst hands, 
+              stateHands = hands,
+              stateStacks = [],
+              stateTrick = [] }
 processGameEvent state (CardPlayed player card) =
-  GameState { stateHands = takeCard (stateHands state) player card,
+  GameState { statePlayers = rotate (statePlayers state),
+              stateHands = takeCard (stateHands state) player card,
               stateStacks = stateStacks state,
               stateTrick = (player, card) : (stateTrick state) }
 processGameEvent state (TrickTaken player) =
-  GameState { stateHands = stateHands state,
-          stateStacks = addToStack (stateStacks state) player (map snd (stateTrick state)),
-          stateTrick = [] }
+  GameState { statePlayers = rotateTo player (statePlayers state),
+              stateHands = stateHands state,
+              stateStacks = addToStack (stateStacks state) player (map snd (stateTrick state)),
+              stateTrick = [] }
 
 type EventSourcing state event = StateT state (Writer event)
 type MonadEventSourcing monad state event = (MonadState state monad, MonadWriter event monad)
@@ -110,19 +125,29 @@ processGameCommand state (DealHands hands) =
 processGameCommand state (PlayCard player card) =
   let event1 = CardPlayed player card
       state1 = processGameEvent state event1
-      trickTaker = whoTakesTrick (stateTrick state1)
-      event2 = TrickTaken trickTaker
-      state2 = processGameEvent state event2
-  in (state2, [event1, event2])
+  in  if turnOver state1 then
+        let trickTaker = whoTakesTrick (stateTrick state1)
+            event2 = TrickTaken trickTaker
+            state2 = processGameEvent state event2
+        in (state2, [event1, event2])
+      else (state1, [event1])
 
 whoTakesTrickM :: MonadState GameState monad => monad Player
 whoTakesTrickM = do
   state <- State.get
   return (whoTakesTrick (stateTrick state))
 
+turnOverM :: MonadState GameState monad => monad Bool
+turnOverM = do
+  state <- State.get
+  return (turnOver state)
+
 processGameCommandM :: MonadEventSourcing monad GameState GameEvent => GameCommand -> monad ()
 processGameCommandM (DealHands hands) = processGameEventM (HandsDealt hands)
 processGameCommandM (PlayCard player hands) =
   do processGameEventM (CardPlayed player hands)
-     trickTaker <- whoTakesTrickM
-     processGameEventM (TrickTaken trickTaker)
+     isTurnOver <- turnOverM
+     when isTurnOver $ do
+       trickTaker <- whoTakesTrickM
+       processGameEventM (TrickTaken trickTaker)
+

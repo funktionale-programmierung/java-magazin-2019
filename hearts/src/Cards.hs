@@ -50,6 +50,17 @@ deck = [Card r s | r <- allRanks, s <- allSuits]
 -- |during the game, a hand contains at least one card
 type Hand = [Card]
 
+isHandEmpty :: Hand -> Bool
+isHandEmpty [] = True
+isHandEmpty _ = False
+
+removeCard :: Hand -> Card -> Hand
+removeCard [] _ = undefined
+removeCard (c':cs) c
+  | c == c' = cs
+  | otherwise = c' : removeCard cs c
+
+
 -- choose a card from the hand that beats the given card if possible
 -- but it does not follow suit!
 chooseCard :: Card -> Hand -> Card
@@ -58,10 +69,6 @@ chooseCard c (card:hand') =
     if cardBeats card c
     then card
     else chooseCard c hand'
-
-
--- the Maybe type
-data Maybe' a = Nothing' | Just' a
 
 -- like chooseCard, but follow suit
 chooseCard' :: Card -> Hand -> Card
