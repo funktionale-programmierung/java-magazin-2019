@@ -94,3 +94,13 @@ chooseCardFollowing c (card:hand') m =
            (if suit c == suit card then Just card else m)
 -}
 
+class Penalty a where
+  penalty :: a -> Int
+
+instance Penalty Card where
+  penalty (Card r Hearts) = 1
+  penalty (Card Queen Spades) = 13
+  penalty (Card _ _) = 0
+
+instance Penalty a => Penalty [a] where
+  penalty xs = sum (map penalty xs)
