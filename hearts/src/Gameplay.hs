@@ -34,6 +34,16 @@ whoTakesTrick trick =
       (player0, card0) : rest = reverse trick
   in loop player0 card0 rest
 
+-- |is it legal to play card given the hand and the partial trick on the table
+legalCard :: Card -> Hand -> Trick -> Bool
+legalCard card hand trick = 
+  card `elem` hand &&
+  case trick of
+    [] -> True -- if trick is empty any card on hand is fine
+    _ -> let (_, firstCard) = last trick
+             firstSuit = suit firstCard
+         in  suit card == firstSuit -- ok if suit is followed
+             || all ((/= firstSuit) . suit) hand -- ok if no such suit in hand
 
 data GameState =
   GameState 
