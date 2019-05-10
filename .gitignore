@@ -1,0 +1,5 @@
+*~
+hearts/.ghc*
+hearts/cabal.project.local
+hearts/dist
+hearts/dist-newstyle
