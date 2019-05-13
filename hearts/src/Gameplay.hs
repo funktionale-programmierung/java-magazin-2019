@@ -1,9 +1,9 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE ConstraintKinds #-}
-{-# LANGUAGE PartialTypeSignatures #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
 module Gameplay where
 
@@ -114,15 +114,22 @@ processGameEvent state (TrickTaken player) =
               stateStacks = addToStack (stateStacks state) player (map snd (stateTrick state)),
               stateTrick = [] }
 
-type EventSourcing state event = StateT state (Writer event)
-type MonadEventSourcing monad state event = (MonadState state monad, MonadWriter event monad)
+class Monad monad => MonadEventSourcing monad state event | monad -> state, monad -> event where
+  readState    :: monad state
+  processEvent :: event -> monad ()
 
-processGameEventM :: MonadEventSourcing monad GameState GameEvent => GameEvent -> monad ()
+type EventSourcing state event monad = StateT state (WriterT [event] monad)
+
+processGameEventM :: Monad monad => GameEvent -> EventSourcing GameState GameEvent monad ()
 processGameEventM event =
   do gameState <- State.get
      State.put (processGameEvent gameState event)
-     Writer.tell event
+     Writer.tell [event]
      return ()
+
+instance Monad monad => MonadEventSourcing (EventSourcing GameState GameEvent monad) GameState GameEvent where
+  readState = State.get
+  processEvent = processGameEventM
 
 data GameCommand =
   DealHands [(Player, Hand)]
@@ -142,22 +149,21 @@ processGameCommand state (PlayCard player card) =
         in (state2, [event1, event2])
       else (state1, [event1])
 
-whoTakesTrickM :: MonadState GameState monad => monad Player
+whoTakesTrickM :: MonadEventSourcing monad GameState GameEvent => monad Player
 whoTakesTrickM = do
-  state <- State.get
+  state <- readState
   return (whoTakesTrick (stateTrick state))
 
-turnOverM :: MonadState GameState monad => monad Bool
+turnOverM :: MonadEventSourcing monad GameState GameEvent => monad Bool
 turnOverM = do
-  state <- State.get
+  state <- readState
   return (turnOver state)
 
 processGameCommandM :: MonadEventSourcing monad GameState GameEvent => GameCommand -> monad ()
-processGameCommandM (DealHands hands) = processGameEventM (HandsDealt hands)
+processGameCommandM (DealHands hands) = processEvent (HandsDealt hands)
 processGameCommandM (PlayCard player hands) =
-  do processGameEventM (CardPlayed player hands)
+  do processEvent (CardPlayed player hands)
      isTurnOver <- turnOverM
      when isTurnOver $ do
        trickTaker <- whoTakesTrickM
-       processGameEventM (TrickTaken trickTaker)
-
+       processEvent (TrickTaken trickTaker)
