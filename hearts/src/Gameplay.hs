@@ -118,6 +118,21 @@ class Monad monad => MonadEventSourcing monad state event | monad -> state, mona
   readState    :: monad state
   processEvent :: event -> monad ()
 
+playerHandM :: MonadEventSourcing monad GameState event => Player -> monad Hand
+playerHandM player =
+  do state <- readState
+     return (find (stateHands state) player)
+
+playerStackM :: MonadEventSourcing monad GameState event => Player -> monad [Card]
+playerStackM player =
+  do state <- readState
+     return (find (stateStacks state) player)
+
+trickM :: MonadEventSourcing monad GameState event => monad Trick
+trickM =
+  do state <- readState
+     return (stateTrick state)
+
 type EventSourcing state event monad = StateT state (WriterT [event] monad)
 
 processGameEventM :: Monad monad => GameEvent -> EventSourcing GameState GameEvent monad ()
@@ -161,9 +176,43 @@ turnOverM = do
 
 processGameCommandM :: MonadEventSourcing monad GameState GameEvent => GameCommand -> monad ()
 processGameCommandM (DealHands hands) = processEvent (HandsDealt hands)
-processGameCommandM (PlayCard player hands) =
-  do processEvent (CardPlayed player hands)
+processGameCommandM (PlayCard player card) =
+  do processEvent (CardPlayed player card)
      isTurnOver <- turnOverM
      when isTurnOver $ do
        trickTaker <- whoTakesTrickM
        processEvent (TrickTaken trickTaker)
+
+type Strategy monad = Hand -> Trick -> [Card] -> monad Card
+
+nextPlayerM :: MonadEventSourcing monad GameState GameEvent => monad Player
+nextPlayerM =
+  do state <- readState
+     return (nextPlayer state)
+
+find :: Eq a => [(a, b)] -> a -> b
+find [] _ = undefined
+find ((x, y) : xs) x'
+  | x == x' = y
+  | otherwise = find xs x'
+
+playCard :: MonadEventSourcing monad GameState GameEvent => Player -> Strategy monad -> monad ()
+playCard player strategy =
+  do hand <- playerHandM player
+     trick <- trickM
+     stack <- playerStackM player
+     card <- strategy hand trick stack
+     return ()
+
+playMove :: MonadEventSourcing monad GameState GameEvent => [(Player, Strategy monad)] -> monad ()
+playMove strategies =
+  do player <- nextPlayerM
+     let strategy = find strategies player
+     playCard player strategy
+
+playTurn :: MonadEventSourcing monad GameState GameEvent => [(Player, Strategy monad)] -> monad ()
+playTurn strategies =
+  do isTurnOver <- turnOverM
+     if isTurnOver
+       then return ()
+       else playMove strategies
