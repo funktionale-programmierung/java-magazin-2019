@@ -1,19 +1,9 @@
 module Cards where
 
--- import Test.QuickCheck
+import qualified Data.Set as S
 
-data Suit = Spades | Hearts | Diamonds | Clubs
-  deriving (Show, Eq)
-
-data Color = Black | Red
-  deriving (Show)
-
--- Define a color function by pattern matching
-color :: Suit -> Color
-color Spades = Black
-color Clubs = Black
-color Diamonds = Red
-color Hearts = Red
+data Suit = Diamonds | Clubs | Spades | Hearts
+  deriving (Show, Eq, Ord)
 
 -- |list of all suits
 allSuits :: [Suit]
@@ -32,7 +22,7 @@ allRanks = [Numeric i | i <- [2..10]] ++ [Jack, Queen, King, Ace]
 
 -- |playing cards
 data Card = Card { rank :: Rank, suit :: Suit }
-  deriving (Show, Eq)
+  deriving (Show, Eq, Ord)
 
 cardSuit = suit -- FIXME
 
@@ -48,19 +38,18 @@ deck = [Card r s | r <- allRanks, s <- allSuits]
 
 
 -- |during the game, a hand contains at least one card
-type Hand = [Card]
+type Hand = S.Set Card
 
 isHandEmpty :: Hand -> Bool
-isHandEmpty [] = True
-isHandEmpty _ = False
+isHandEmpty = S.null
 
-removeCard :: Hand -> Card -> Hand
-removeCard [] _ = undefined
-removeCard (c':cs) c
-  | c == c' = cs
-  | otherwise = c' : removeCard cs c
+removeCard :: Card -> Hand -> Hand
+removeCard = S.delete
 
+containsCard :: Card -> Hand -> Bool
+containsCard = S.member
 
+{-
 -- choose a card from the hand that beats the given card if possible
 -- but it does not follow suit!
 chooseCard :: Card -> Hand -> Card
@@ -88,10 +77,6 @@ chooseCardFollowing c (card:hand') m =
     else if suit c == suit card
     then chooseCardFollowing c hand' (Just card)
     else chooseCardFollowing c hand' m
-
-{- alternative way of writing this:
-    else chooseCardFollowing c hand
-           (if suit c == suit card then Just card else m)
 -}
 
 class Penalty a where

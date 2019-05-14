@@ -7,13 +7,16 @@
 
 module Gameplay where
 
-import Control.Monad (when)
+import Control.Monad (when, unless)
 
 import qualified Control.Monad.Writer (WriterT)
 import Control.Monad.Writer as Writer
   
 import Control.Monad.State.Lazy as State
 import qualified Control.Monad.State.Lazy (State)
+
+import qualified Data.Map.Strict as M
+import qualified Data.Set as S
 
 import Cards
 
@@ -34,22 +37,25 @@ whoTakesTrick trick =
       (player0, card0) : rest = reverse trick
   in loop player0 card0 rest
 
--- |is it legal to play card given the hand and the partial trick on the table
+-- |is it legal to play card given the hand and the partial trick on the table?
 legalCard :: Card -> Hand -> Trick -> Bool
 legalCard card hand trick = 
-  card `elem` hand &&
+  containsCard card hand &&
   case trick of
-    [] -> True -- if trick is empty any card on hand is fine
+    [] -> True -- if trick is empty, then any card on hand is fine
     _ -> let (_, firstCard) = last trick
              firstSuit = suit firstCard
          in  suit card == firstSuit -- ok if suit is followed
-             || all ((/= firstSuit) . suit) hand -- ok if no such suit in hand
+             || all ((/= firstSuit) . suit) (S.elems hand) -- ok if no such suit in hand
+
+type PlayerStacks = M.Map Player [Card]
+type PlayerHands  = M.Map Player Hand
 
 data GameState =
   GameState 
   { statePlayers :: [Player],   -- current player at front
-    stateHands :: [(Player, Hand)],
-    stateStacks :: [(Player, [Card])],
+    stateHands :: PlayerHands,
+    stateStacks :: PlayerStacks,
     stateTrick :: Trick
   }
 
@@ -64,44 +70,35 @@ rotateTo y xs@(x : xs') | x == y = xs
                         | otherwise = rotateTo y (xs' ++ [x])
 rotateTo y [] = undefined
 
--- PT: better modeling
--- stateHands :: Data.Map Player Hand
--- stateStacks :: Data.Map Player [Card]
--- ... but it would require an extra mechanism to determine the sequence of players
-
--- determine whose turn it is
+-- determine whose turn it is (assumes at least one player)
 nextPlayer :: GameState -> Player
 nextPlayer state =
   head (statePlayers state)
 
 gameOver :: GameState -> Bool
-gameOver state = all (\ (player, hand) -> isHandEmpty hand) (stateHands state)
+gameOver state = all isHandEmpty $ M.elems $ stateHands state
 
 turnOver :: GameState -> Bool
-turnOver state = (length (stateHands state)) == (length (stateTrick state))
+turnOver state = M.size (stateHands state) == length (stateTrick state)
 
 data GameEvent =
     HandsDealt [(Player, Hand)]
   | CardPlayed Player Card
   | TrickTaken Player
 
-takeCard :: [(Player, Hand)] -> Player -> Card -> [(Player, Hand)]
-takeCard [] _ _ = undefined
-takeCard ((player', hand):rest) player card
-  | player' == player = (player, removeCard hand card) : rest
-  | otherwise         = ((player', hand) : takeCard rest player card)
+takeCard :: PlayerHands -> Player -> Card -> PlayerHands
+takeCard playerHand player card =
+  M.alter (fmap (removeCard card)) player playerHand
 
-addToStack :: [(Player, [Card])] -> Player -> [Card] -> [(Player, [Card])]
-addToStack [] _ _ = undefined
-addToStack ((player', stack):rest) player stack'
-  | player' == player = (player', stack' ++ stack):rest
-  | otherwise         = (player', stack) : addToStack rest player stack'
+addToStack :: PlayerStacks -> Player -> [Card] -> PlayerStacks
+addToStack playerStack player cards =
+  M.alter (fmap (cards++)) player playerStack
 
 processGameEvent :: GameState -> GameEvent -> GameState
 processGameEvent state (HandsDealt hands) =
   GameState { statePlayers = map fst hands, 
-              stateHands = hands,
-              stateStacks = [],
+              stateHands = M.fromList hands,
+              stateStacks = M.empty,
               stateTrick = [] }
 processGameEvent state (CardPlayed player card) =
   GameState { statePlayers = rotate (statePlayers state),
@@ -121,12 +118,12 @@ class Monad monad => MonadEventSourcing monad state event | monad -> state, mona
 playerHandM :: MonadEventSourcing monad GameState event => Player -> monad Hand
 playerHandM player =
   do state <- readState
-     return (find (stateHands state) player)
+     return (stateHands state M.! player)
 
 playerStackM :: MonadEventSourcing monad GameState event => Player -> monad [Card]
 playerStackM player =
   do state <- readState
-     return (find (stateStacks state) player)
+     return (stateStacks state M.! player)
 
 trickM :: MonadEventSourcing monad GameState event => monad Trick
 trickM =
@@ -185,16 +182,12 @@ processGameCommandM (PlayCard player card) =
 
 type Strategy monad = Hand -> Trick -> [Card] -> monad Card
 
+type PlayerStrategies monad = M.Map Player (Strategy monad)
+
 nextPlayerM :: MonadEventSourcing monad GameState GameEvent => monad Player
 nextPlayerM =
   do state <- readState
      return (nextPlayer state)
-
-find :: Eq a => [(a, b)] -> a -> b
-find [] _ = undefined
-find ((x, y) : xs) x'
-  | x == x' = y
-  | otherwise = find xs x'
 
 playCard :: MonadEventSourcing monad GameState GameEvent => Player -> Strategy monad -> monad ()
 playCard player strategy =
@@ -204,16 +197,31 @@ playCard player strategy =
      card <- strategy hand trick stack
      return ()
 
-playMove :: MonadEventSourcing monad GameState GameEvent => [(Player, Strategy monad)] -> monad ()
+playMove :: MonadEventSourcing monad GameState GameEvent => PlayerStrategies monad -> monad ()
 playMove strategies =
   do player <- nextPlayerM
-     let strategy = find strategies player
+     let strategy = strategies M.! player
      -- FIXME: validity check, legalCard
      playCard player strategy
 
-playTurn :: MonadEventSourcing monad GameState GameEvent => [(Player, Strategy monad)] -> monad ()
+playTurn :: MonadEventSourcing monad GameState GameEvent => PlayerStrategies monad -> monad ()
 playTurn strategies =
   do isTurnOver <- turnOverM
-     if isTurnOver
-       then return ()
-       else playMove strategies
+     unless isTurnOver $
+       playMove strategies
+
+-- strategies
+
+-- |stupid robo player
+playAlong :: Monad m => Strategy m
+playAlong hand [] stack =
+  return (S.findMin hand)       -- coming up, choose a small first card
+playAlong hand trick stack =
+  let (_, firstCard) = last trick
+      firstSuit = suit firstCard
+      followingCardsOnHand = S.filter ((== firstSuit) . suit) hand
+  in  case S.lookupMin followingCardsOnHand of
+        Nothing ->
+          return (S.findMax hand) -- any card is fine, so try to get rid of high hearts
+        Just card ->
+          return card           -- otherwise use the minimal following card
