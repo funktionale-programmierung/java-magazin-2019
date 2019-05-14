@@ -208,6 +208,7 @@ playMove :: MonadEventSourcing monad GameState GameEvent => [(Player, Strategy m
 playMove strategies =
   do player <- nextPlayerM
      let strategy = find strategies player
+     -- FIXME: validity check, legalCard
      playCard player strategy
 
 playTurn :: MonadEventSourcing monad GameState GameEvent => [(Player, Strategy monad)] -> monad ()
