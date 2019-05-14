@@ -15,6 +15,8 @@ import Control.Monad.Writer as Writer
 import Control.Monad.State.Lazy as State
 import qualified Control.Monad.State.Lazy (State)
 
+import qualified Data.Map.Strict as M
+
 import Cards
 
 -- Games
@@ -34,7 +36,7 @@ whoTakesTrick trick =
       (player0, card0) : rest = reverse trick
   in loop player0 card0 rest
 
--- |is it legal to play card given the hand and the partial trick on the table
+-- |is it legal to play card given the hand and the partial trick on the table?
 legalCard :: Card -> Hand -> Trick -> Bool
 legalCard card hand trick = 
   card `elem` hand &&
@@ -45,11 +47,14 @@ legalCard card hand trick =
          in  suit card == firstSuit -- ok if suit is followed
              || all ((/= firstSuit) . suit) hand -- ok if no such suit in hand
 
+type PlayerStacks = M.Map Player [Card]
+type PlayerHands  = M.Map Player Hand
+
 data GameState =
   GameState 
   { statePlayers :: [Player],   -- current player at front
-    stateHands :: [(Player, Hand)],
-    stateStacks :: [(Player, [Card])],
+    stateHands :: PlayerHands,
+    stateStacks :: PlayerStacks,
     stateTrick :: Trick
   }
 
@@ -64,44 +69,35 @@ rotateTo y xs@(x : xs') | x == y = xs
                         | otherwise = rotateTo y (xs' ++ [x])
 rotateTo y [] = undefined
 
--- PT: better modeling
--- stateHands :: Data.Map Player Hand
--- stateStacks :: Data.Map Player [Card]
--- ... but it would require an extra mechanism to determine the sequence of players
-
--- determine whose turn it is
+-- determine whose turn it is (assumes at least one player)
 nextPlayer :: GameState -> Player
 nextPlayer state =
   head (statePlayers state)
 
 gameOver :: GameState -> Bool
-gameOver state = all (\ (player, hand) -> isHandEmpty hand) (stateHands state)
+gameOver state = all isHandEmpty $ M.elems $ stateHands state
 
 turnOver :: GameState -> Bool
-turnOver state = (length (stateHands state)) == (length (stateTrick state))
+turnOver state = M.size (stateHands state) == length (stateTrick state)
 
 data GameEvent =
     HandsDealt [(Player, Hand)]
   | CardPlayed Player Card
   | TrickTaken Player
 
-takeCard :: [(Player, Hand)] -> Player -> Card -> [(Player, Hand)]
-takeCard [] _ _ = undefined
-takeCard ((player', hand):rest) player card
-  | player' == player = (player, removeCard hand card) : rest
-  | otherwise         = ((player', hand) : takeCard rest player card)
+takeCard :: PlayerHands -> Player -> Card -> PlayerHands
+takeCard playerHand player card =
+  M.alter (fmap (removeCard card)) player playerHand
 
-addToStack :: [(Player, [Card])] -> Player -> [Card] -> [(Player, [Card])]
-addToStack [] _ _ = undefined
-addToStack ((player', stack):rest) player stack'
-  | player' == player = (player', stack' ++ stack):rest
-  | otherwise         = (player', stack) : addToStack rest player stack'
+addToStack :: PlayerStacks -> Player -> [Card] -> PlayerStacks
+addToStack playerStack player cards =
+  M.alter (fmap (cards++)) player playerStack
 
 processGameEvent :: GameState -> GameEvent -> GameState
 processGameEvent state (HandsDealt hands) =
   GameState { statePlayers = map fst hands, 
-              stateHands = hands,
-              stateStacks = [],
+              stateHands = M.fromList hands,
+              stateStacks = M.empty,
               stateTrick = [] }
 processGameEvent state (CardPlayed player card) =
   GameState { statePlayers = rotate (statePlayers state),
@@ -121,12 +117,12 @@ class Monad monad => MonadEventSourcing monad state event | monad -> state, mona
 playerHandM :: MonadEventSourcing monad GameState event => Player -> monad Hand
 playerHandM player =
   do state <- readState
-     return (find (stateHands state) player)
+     return (stateHands state M.! player)
 
 playerStackM :: MonadEventSourcing monad GameState event => Player -> monad [Card]
 playerStackM player =
   do state <- readState
-     return (find (stateStacks state) player)
+     return (stateStacks state M.! player)
 
 trickM :: MonadEventSourcing monad GameState event => monad Trick
 trickM =
