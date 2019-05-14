@@ -16,6 +16,7 @@ import Control.Monad.State.Lazy as State
 import qualified Control.Monad.State.Lazy (State)
 
 import qualified Data.Map.Strict as M
+import qualified Data.Set as S
 
 import Cards
 
@@ -39,13 +40,13 @@ whoTakesTrick trick =
 -- |is it legal to play card given the hand and the partial trick on the table?
 legalCard :: Card -> Hand -> Trick -> Bool
 legalCard card hand trick = 
-  card `elem` hand &&
+  containsCard card hand &&
   case trick of
-    [] -> True -- if trick is empty any card on hand is fine
+    [] -> True -- if trick is empty, then any card on hand is fine
     _ -> let (_, firstCard) = last trick
              firstSuit = suit firstCard
          in  suit card == firstSuit -- ok if suit is followed
-             || all ((/= firstSuit) . suit) hand -- ok if no such suit in hand
+             || all ((/= firstSuit) . suit) (S.elems hand) -- ok if no such suit in hand
 
 type PlayerStacks = M.Map Player [Card]
 type PlayerHands  = M.Map Player Hand
@@ -207,3 +208,19 @@ playTurn strategies =
   do isTurnOver <- turnOverM
      unless isTurnOver $
        playMove strategies
+
+-- strategies
+
+-- |stupid robo player
+playAlong :: Monad m => Strategy m
+playAlong hand [] stack =
+  return (S.findMin hand)       -- coming up, choose a small first card
+playAlong hand trick stack =
+  let (_, firstCard) = last trick
+      firstSuit = suit firstCard
+      followingCardsOnHand = S.filter ((== firstSuit) . suit) hand
+  in  case S.lookupMin followingCardsOnHand of
+        Nothing ->
+          return (S.findMax hand) -- any card is fine, so try to get rid of high hearts
+        Just card ->
+          return card           -- otherwise use the minimal following card

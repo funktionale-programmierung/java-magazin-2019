@@ -2,18 +2,8 @@ module Cards where
 
 import qualified Data.Set as S
 
-data Suit = Spades | Hearts | Diamonds | Clubs
+data Suit = Diamonds | Clubs | Spades | Hearts
   deriving (Show, Eq, Ord)
-
-data Color = Black | Red
-  deriving (Show)
-
--- Define a color function by pattern matching
-color :: Suit -> Color
-color Spades = Black
-color Clubs = Black
-color Diamonds = Red
-color Hearts = Red
 
 -- |list of all suits
 allSuits :: [Suit]
@@ -55,6 +45,9 @@ isHandEmpty = S.null
 
 removeCard :: Card -> Hand -> Hand
 removeCard = S.delete
+
+containsCard :: Card -> Hand -> Bool
+containsCard = S.member
 
 {-
 -- choose a card from the hand that beats the given card if possible
