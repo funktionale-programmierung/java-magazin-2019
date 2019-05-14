@@ -180,7 +180,7 @@ processGameCommandM (PlayCard player card) =
        trickTaker <- whoTakesTrickM
        processEvent (TrickTaken trickTaker)
 
-type Strategy monad = Hand -> Trick -> [Card] -> monad Card
+type Strategy monad = Player -> Hand -> Trick -> [Card] -> monad Card
 
 type PlayerStrategies monad = M.Map Player (Strategy monad)
 
@@ -194,8 +194,8 @@ playCard player strategy =
   do hand <- playerHandM player
      trick <- trickM
      stack <- playerStackM player
-     card <- strategy hand trick stack
-     return ()
+     card <- strategy player hand trick stack
+     processGameCommandM (PlayCard player card)
 
 playMove :: MonadEventSourcing monad GameState GameEvent => PlayerStrategies monad -> monad ()
 playMove strategies =
@@ -204,19 +204,22 @@ playMove strategies =
      -- FIXME: validity check, legalCard
      playCard player strategy
 
-playTurn :: MonadEventSourcing monad GameState GameEvent => PlayerStrategies monad -> monad ()
+-- returns True if turn is over, False otherwise
+playTurn :: MonadEventSourcing monad GameState GameEvent => PlayerStrategies monad -> monad Bool
 playTurn strategies =
   do isTurnOver <- turnOverM
-     unless isTurnOver $
-       playMove strategies
+     if isTurnOver
+     then do playMove strategies
+             return True
+     else return False
 
 -- strategies
 
 -- |stupid robo player
 playAlong :: Monad m => Strategy m
-playAlong hand [] stack =
+playAlong player hand [] stack =
   return (S.findMin hand)       -- coming up, choose a small first card
-playAlong hand trick stack =
+playAlong player hand trick stack =
   let (_, firstCard) = last trick
       firstSuit = suit firstCard
       followingCardsOnHand = S.filter ((== firstSuit) . suit) hand
