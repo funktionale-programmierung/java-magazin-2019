@@ -7,7 +7,7 @@
 
 module Gameplay where
 
-import Control.Monad (when)
+import Control.Monad (when, unless)
 
 import qualified Control.Monad.Writer (WriterT)
 import Control.Monad.Writer as Writer
@@ -181,16 +181,12 @@ processGameCommandM (PlayCard player card) =
 
 type Strategy monad = Hand -> Trick -> [Card] -> monad Card
 
+type PlayerStrategies monad = M.Map Player (Strategy monad)
+
 nextPlayerM :: MonadEventSourcing monad GameState GameEvent => monad Player
 nextPlayerM =
   do state <- readState
      return (nextPlayer state)
-
-find :: Eq a => [(a, b)] -> a -> b
-find [] _ = undefined
-find ((x, y) : xs) x'
-  | x == x' = y
-  | otherwise = find xs x'
 
 playCard :: MonadEventSourcing monad GameState GameEvent => Player -> Strategy monad -> monad ()
 playCard player strategy =
@@ -200,15 +196,14 @@ playCard player strategy =
      card <- strategy hand trick stack
      return ()
 
-playMove :: MonadEventSourcing monad GameState GameEvent => [(Player, Strategy monad)] -> monad ()
+playMove :: MonadEventSourcing monad GameState GameEvent => PlayerStrategies monad -> monad ()
 playMove strategies =
   do player <- nextPlayerM
-     let strategy = find strategies player
+     let strategy = strategies M.! player
      playCard player strategy
 
-playTurn :: MonadEventSourcing monad GameState GameEvent => [(Player, Strategy monad)] -> monad ()
+playTurn :: MonadEventSourcing monad GameState GameEvent => PlayerStrategies monad -> monad ()
 playTurn strategies =
   do isTurnOver <- turnOverM
-     if isTurnOver
-       then return ()
-       else playMove strategies
+     unless isTurnOver $
+       playMove strategies
