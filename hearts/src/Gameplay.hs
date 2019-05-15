@@ -228,3 +228,31 @@ playAlong player hand trick stack =
           return (S.findMax hand) -- any card is fine, so try to get rid of high hearts
         Just card ->
           return card           -- otherwise use the minimal following card
+
+-- | interactive player
+playInteractive :: MonadIO m => Strategy m
+playInteractive player hand trick stack =
+  liftIO $ do
+  putStrLn ("Your turn, player " ++ player)
+  case trick of
+    [] ->
+      putStrLn "You lead the next trick."
+    _ ->
+      putStrLn ("Current trick: " ++ show (reverse (map snd trick)))
+  let myhand = S.elems hand
+      ncards = S.size hand
+  putStrLn ("Your hand: " ++ pretty myhand)
+  putStrLn ("Pick a card (1-" ++ show ncards ++ ")")
+  selected <- getNumber (1,ncards)
+  return (myhand !! (selected - 1))
+
+
+-- |read number in given range from terminal
+getNumber :: (Num a, Ord a, Read a) => (a, a) -> IO a
+getNumber (lo, hi) = do
+  s <- getLine
+  let input = read s
+  if lo <= input && input <= hi then return input
+    else do
+    putStrLn ("Input must be between " ++ show lo ++ " and " ++ show hi ++ ". Try again"
+    getNumber (lo, hi)
