@@ -189,15 +189,15 @@ nextPlayerM =
   do state <- readState
      return (nextPlayer state)
 
-playCard :: MonadEventSourcing monad GameState GameEvent => Player -> Strategy monad -> monad ()
+playCard :: Monad monad => Player -> Strategy monad -> EventSourcing GameState GameEvent monad ()
 playCard player strategy =
   do hand <- playerHandM player
      trick <- trickM
      stack <- playerStackM player
-     card <- strategy player hand trick stack
+     card <- lift (lift (strategy player hand trick stack))
      processGameCommandM (PlayCard player card)
 
-playMove :: MonadEventSourcing monad GameState GameEvent => PlayerStrategies monad -> monad ()
+playMove :: Monad monad => PlayerStrategies monad -> EventSourcing GameState GameEvent monad ()
 playMove strategies =
   do player <- nextPlayerM
      let strategy = strategies M.! player
@@ -205,7 +205,7 @@ playMove strategies =
      playCard player strategy
 
 -- returns True if turn is over, False otherwise
-playTurn :: MonadEventSourcing monad GameState GameEvent => PlayerStrategies monad -> monad Bool
+playTurn :: Monad monad => PlayerStrategies monad -> EventSourcing GameState GameEvent monad Bool
 playTurn strategies =
   do isTurnOver <- turnOverM
      if isTurnOver
