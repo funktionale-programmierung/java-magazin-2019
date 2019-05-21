@@ -21,7 +21,7 @@ allRanks :: [Rank]
 allRanks = [Numeric i | i <- [2..10]] ++ [Jack, Queen, King, Ace]
 
 -- |playing cards
-data Card = Card { rank :: Rank, suit :: Suit }
+data Card = Card { suit :: Suit, rank :: Rank }
   deriving (Show, Eq, Ord)
 
 cardSuit = suit -- FIXME
@@ -34,7 +34,7 @@ cardBeats givenCard c = suit givenCard == suit c
 
 -- |full deck of all cards
 deck :: [Card]
-deck = [Card r s | r <- allRanks, s <- allSuits]
+deck = [Card {rank= r, suit= s} | r <- allRanks, s <- allSuits]
 
 
 -- |during the game, a hand contains at least one card
@@ -83,9 +83,28 @@ class Penalty a where
   penalty :: a -> Int
 
 instance Penalty Card where
-  penalty (Card r Hearts) = 1
-  penalty (Card Queen Spades) = 13
+  penalty (Card Hearts r) = 1
+  penalty (Card Spades Queen) = 13
   penalty (Card _ _) = 0
 
 instance Penalty a => Penalty [a] where
   penalty xs = sum (map penalty xs)
+
+class Pretty a where
+  pretty :: a -> String
+
+instance Pretty Rank where
+  pretty (Numeric i) = show i
+  pretty r = show r
+
+instance Pretty Suit where
+  pretty s = show s
+
+instance Pretty Card where
+  pretty c = pretty (rank c) ++ " of " ++ pretty (suit c)
+
+instance Pretty a => Pretty [a] where
+  pretty [] = ""
+  pretty [x] = pretty x
+  pretty (x:xs) = pretty x ++ " and " ++ pretty xs
+

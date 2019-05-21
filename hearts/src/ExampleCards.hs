@@ -3,10 +3,10 @@ module ExampleCards where
 import Cards
 
 -- |example cards
-aceOfSpades = Card Ace Spades
-tenOfHearts = Card (Numeric 10) Hearts
-queenOfHearts = Card Queen Hearts
-jackOfClub = Card Jack Clubs
+aceOfSpades = Card Spades Ace
+tenOfHearts = Card Hearts (Numeric 10)
+queenOfHearts = Card Hearts Queen
+jackOfClub = Card Clubs Jack
 
 exampleHand = [jackOfClub, queenOfHearts, tenOfHearts, aceOfSpades]
-tenOfClubs = Card (Numeric 10) Clubs
+tenOfClubs = Card Clubs (Numeric 10)
