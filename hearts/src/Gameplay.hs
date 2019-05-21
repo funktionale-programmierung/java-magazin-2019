@@ -248,11 +248,12 @@ playInteractive player hand trick stack =
 
 
 -- |read number in given range from terminal
-getNumber :: (Num a, Ord a, Read a) => (a, a) -> IO a
+getNumber :: (Num a, Ord a, Read a, Show a) => (a, a) -> IO a
 getNumber (lo, hi) = do
   s <- getLine
   let input = read s
-  if lo <= input && input <= hi then return input
-    else do
-    putStrLn ("Input must be between " ++ show lo ++ " and " ++ show hi ++ ". Try again"
-    getNumber (lo, hi)
+  if lo <= input && input <= hi
+  then return input
+  else
+    do putStrLn ("Input must be between " ++ (show lo) ++ " and " ++ (show hi) ++ ". Try again")
+       getNumber (lo, hi)
