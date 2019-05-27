@@ -82,7 +82,7 @@ turnOver :: GameState -> Bool
 turnOver state = M.size (stateHands state) == length (stateTrick state)
 
 data GameEvent =
-    HandsDealt [(PlayerName, Hand)]
+    HandsDealt (M.Map PlayerName Hand)
   | CardPlayed PlayerName Card
   | TrickTaken PlayerName
 
@@ -96,8 +96,8 @@ addToStack playerStack player cards =
 
 processGameEvent :: GameState -> GameEvent -> GameState
 processGameEvent state (HandsDealt hands) =
-  GameState { statePlayers = map fst hands, 
-              stateHands = M.fromList hands,
+  GameState { statePlayers = M.keys hands,
+              stateHands = hands,
               stateStacks = M.empty,
               stateTrick = [] }
 processGameEvent state (CardPlayed player card) =
@@ -144,7 +144,7 @@ instance Monad monad => MonadEventSourcing (EventSourcing GameState GameEvent mo
   processEvent = processGameEventM
 
 data GameCommand =
-  DealHands [(PlayerName, Hand)]
+  DealHands (M.Map PlayerName Hand)
   | PlayCard PlayerName Card
  
 processGameCommand :: GameState -> GameCommand -> (GameState, [GameEvent])
