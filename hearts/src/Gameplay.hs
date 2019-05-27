@@ -21,12 +21,12 @@ import qualified Data.Set as S
 import Cards
 
 -- Games
-type Player = String
+type PlayerName = String
 
 -- last card is at the front
-type Trick = [(Player, Card)]
+type Trick = [(PlayerName, Card)]
 
-whoTakesTrick :: Trick -> Player
+whoTakesTrick :: Trick -> PlayerName
 whoTakesTrick [] = undefined
 whoTakesTrick trick =
   let loop player card [] = player
@@ -48,12 +48,12 @@ legalCard card hand trick =
          in  suit card == firstSuit -- ok if suit is followed
              || all ((/= firstSuit) . suit) (S.elems hand) -- ok if no such suit in hand
 
-type PlayerStacks = M.Map Player [Card]
-type PlayerHands  = M.Map Player Hand
+type PlayerStacks = M.Map PlayerName [Card]
+type PlayerHands  = M.Map PlayerName Hand
 
 data GameState =
   GameState 
-  { statePlayers :: [Player],   -- current player at front
+  { statePlayers :: [PlayerName],   -- current player at front
     stateHands :: PlayerHands,
     stateStacks :: PlayerStacks,
     stateTrick :: Trick
@@ -71,7 +71,7 @@ rotateTo y xs@(x : xs') | x == y = xs
 rotateTo y [] = undefined
 
 -- determine whose turn it is (assumes at least one player)
-nextPlayer :: GameState -> Player
+nextPlayer :: GameState -> PlayerName
 nextPlayer state =
   head (statePlayers state)
 
@@ -82,15 +82,15 @@ turnOver :: GameState -> Bool
 turnOver state = M.size (stateHands state) == length (stateTrick state)
 
 data GameEvent =
-    HandsDealt [(Player, Hand)]
-  | CardPlayed Player Card
-  | TrickTaken Player
+    HandsDealt [(PlayerName, Hand)]
+  | CardPlayed PlayerName Card
+  | TrickTaken PlayerName
 
-takeCard :: PlayerHands -> Player -> Card -> PlayerHands
+takeCard :: PlayerHands -> PlayerName -> Card -> PlayerHands
 takeCard playerHand player card =
   M.alter (fmap (removeCard card)) player playerHand
 
-addToStack :: PlayerStacks -> Player -> [Card] -> PlayerStacks
+addToStack :: PlayerStacks -> PlayerName -> [Card] -> PlayerStacks
 addToStack playerStack player cards =
   M.alter (fmap (cards++)) player playerStack
 
@@ -115,12 +115,12 @@ class Monad monad => MonadEventSourcing monad state event | monad -> state, mona
   readState    :: monad state
   processEvent :: event -> monad ()
 
-playerHandM :: MonadEventSourcing monad GameState event => Player -> monad Hand
+playerHandM :: MonadEventSourcing monad GameState event => PlayerName -> monad Hand
 playerHandM player =
   do state <- readState
      return (stateHands state M.! player)
 
-playerStackM :: MonadEventSourcing monad GameState event => Player -> monad [Card]
+playerStackM :: MonadEventSourcing monad GameState event => PlayerName -> monad [Card]
 playerStackM player =
   do state <- readState
      return (stateStacks state M.! player)
@@ -144,8 +144,8 @@ instance Monad monad => MonadEventSourcing (EventSourcing GameState GameEvent mo
   processEvent = processGameEventM
 
 data GameCommand =
-  DealHands [(Player, Hand)]
-  | PlayCard Player Card
+  DealHands [(PlayerName, Hand)]
+  | PlayCard PlayerName Card
  
 processGameCommand :: GameState -> GameCommand -> (GameState, [GameEvent])
 processGameCommand state (DealHands hands) =
@@ -161,7 +161,7 @@ processGameCommand state (PlayCard player card) =
         in (state2, [event1, event2])
       else (state1, [event1])
 
-whoTakesTrickM :: MonadEventSourcing monad GameState GameEvent => monad Player
+whoTakesTrickM :: MonadEventSourcing monad GameState GameEvent => monad PlayerName
 whoTakesTrickM = do
   state <- readState
   return (whoTakesTrick (stateTrick state))
@@ -180,16 +180,16 @@ processGameCommandM (PlayCard player card) =
        trickTaker <- whoTakesTrickM
        processEvent (TrickTaken trickTaker)
 
-type Strategy monad = Player -> Hand -> Trick -> [Card] -> monad Card
+type Strategy monad = PlayerName -> Hand -> Trick -> [Card] -> monad Card
 
-type PlayerStrategies monad = M.Map Player (Strategy monad)
+type PlayerStrategies monad = M.Map PlayerName (Strategy monad)
 
-nextPlayerM :: MonadEventSourcing monad GameState GameEvent => monad Player
+nextPlayerM :: MonadEventSourcing monad GameState GameEvent => monad PlayerName
 nextPlayerM =
   do state <- readState
      return (nextPlayer state)
 
-playCard :: Monad monad => Player -> Strategy monad -> EventSourcing GameState GameEvent monad ()
+playCard :: Monad monad => PlayerName -> Strategy monad -> EventSourcing GameState GameEvent monad ()
 playCard player strategy =
   do hand <- playerHandM player
      trick <- trickM
