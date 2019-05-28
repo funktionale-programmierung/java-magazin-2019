@@ -1,3 +1,4 @@
+{-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
@@ -13,7 +14,8 @@ import qualified Control.Monad.Writer (WriterT)
 import Control.Monad.Writer as Writer
   
 import Control.Monad.State.Lazy as State
-import qualified Control.Monad.State.Lazy (State)
+import qualified Control.Monad.State.Lazy (State, StateT)
+import Control.Monad.Trans.Identity (IdentityT)
 
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
@@ -83,8 +85,9 @@ turnOver state = M.size (stateHands state) == length (stateTrick state)
 
 data GameEvent =
     HandsDealt (M.Map PlayerName Hand)
+  | PlayerTurn PlayerName
   | CardPlayed PlayerName Card
-  | TrickTaken PlayerName
+  | TrickTaken PlayerName Trick
 
 takeCard :: PlayerHands -> PlayerName -> Card -> PlayerHands
 takeCard playerHand player card =
@@ -100,15 +103,16 @@ processGameEvent state (HandsDealt hands) =
               stateHands = hands,
               stateStacks = M.empty,
               stateTrick = [] }
+processGameEvent state (PlayerTurn _) = state
 processGameEvent state (CardPlayed player card) =
   GameState { statePlayers = rotate (statePlayers state),
               stateHands = takeCard (stateHands state) player card,
               stateStacks = stateStacks state,
               stateTrick = (player, card) : (stateTrick state) }
-processGameEvent state (TrickTaken player) =
+processGameEvent state (TrickTaken player trick) =
   GameState { statePlayers = rotateTo player (statePlayers state),
               stateHands = stateHands state,
-              stateStacks = addToStack (stateStacks state) player (map snd (stateTrick state)),
+              stateStacks = addToStack (stateStacks state) player (map snd trick),
               stateTrick = [] }
 
 class Monad monad => MonadEventSourcing monad state event | monad -> state, monad -> event where
@@ -144,7 +148,7 @@ instance Monad monad => MonadEventSourcing (EventSourcing GameState GameEvent mo
   processEvent = processGameEventM
 
 data GameCommand =
-  DealHands (M.Map PlayerName Hand)
+    DealHands (M.Map PlayerName Hand)
   | PlayCard PlayerName Card
  
 processGameCommand :: GameState -> GameCommand -> (GameState, [GameEvent])
@@ -155,16 +159,18 @@ processGameCommand state (PlayCard player card) =
   let event1 = CardPlayed player card
       state1 = processGameEvent state event1
   in  if turnOver state1 then
-        let trickTaker = whoTakesTrick (stateTrick state1)
-            event2 = TrickTaken trickTaker
+        let trick = stateTrick state1
+            trickTaker = whoTakesTrick trick
+            event2 = TrickTaken trickTaker trick
             state2 = processGameEvent state event2
         in (state2, [event1, event2])
       else (state1, [event1])
 
-whoTakesTrickM :: MonadEventSourcing monad GameState GameEvent => monad PlayerName
+whoTakesTrickM :: MonadEventSourcing monad GameState GameEvent => monad (PlayerName, Trick)
 whoTakesTrickM = do
   state <- readState
-  return (whoTakesTrick (stateTrick state))
+  let trick = stateTrick state
+  return (whoTakesTrick trick, trick)
 
 turnOverM :: MonadEventSourcing monad GameState GameEvent => monad Bool
 turnOverM = do
@@ -177,19 +183,72 @@ processGameCommandM (PlayCard player card) =
   do processEvent (CardPlayed player card)
      isTurnOver <- turnOverM
      when isTurnOver $ do
-       trickTaker <- whoTakesTrickM
-       processEvent (TrickTaken trickTaker)
+       (trickTaker, trick) <- whoTakesTrickM
+       processEvent (TrickTaken trickTaker trick)
 
-type Strategy monad = PlayerName -> Hand -> Trick -> [Card] -> monad Card
+type Strategy (transformer :: (* -> *) -> (* -> *)) monad = PlayerName -> Hand -> Trick -> [Card] -> transformer monad Card
 
-type PlayerStrategies monad = M.Map PlayerName (Strategy monad)
+-- player with two of clubs at the start leads in the first hand
+
+type Player monad = GameEvent -> monad [GameCommand]
+
+data PlayerState =
+  PlayerState { playerName :: PlayerName,
+                playerHand :: Hand,
+                playerTrick :: Trick,
+                playerStack :: [Card] }
+
+playerProcessGameEvent :: PlayerState -> GameEvent -> PlayerState
+playerProcessGameEvent state (HandsDealt hands) =
+  PlayerState { playerName = playerName state,
+                playerHand = hands M.! (playerName state),
+                playerTrick = [],
+                playerStack = [] }
+playerProcessGameEvent state (CardPlayed player card)
+  | player == playerName state =
+    state { playerHand = removeCard card (playerHand state),
+            playerTrick = (player, card) : (playerTrick state) }
+  | otherwise = state
+playerProcessGameEvent state (TrickTaken player trick)
+  | player == playerName state =
+    state { playerTrick = [],
+            playerStack = (map snd trick) ++ (playerStack state) }
+  | otherwise = state
+
+playerProcessGameEventM :: Monad monad => GameEvent -> StateT PlayerState monad ()
+playerProcessGameEventM event =
+  do playerState <- State.get
+     let playerState' = playerProcessGameEvent playerState event
+     State.put playerState'
+
+twoOfClubs = Card Clubs (Numeric 2)
+
+strategyPlayer :: Monad (transformer monad) => Strategy transformer monad -> GameEvent -> StateT PlayerState (transformer monad) [GameCommand]
+strategyPlayer strategy event =
+  do playerProcessGameEventM event
+     playerState <- State.get
+     let name = playerName playerState
+     case event of
+       HandsDealt hands ->
+         if S.member twoOfClubs (playerHand playerState)
+         then return [PlayCard name twoOfClubs]
+         else return []
+       PlayerTurn name' ->
+         if name == name'
+         then do card <- lift (strategy name (playerHand playerState) (playerTrick playerState) (playerStack playerState))
+                 return [PlayCard name card]
+         else return []
+       CardPlayed name' card -> return []
+       TrickTaken name' trick -> return []
+
+type PlayerStrategies monad = M.Map PlayerName (Strategy Control.Monad.Trans.Identity.IdentityT monad)
 
 nextPlayerM :: MonadEventSourcing monad GameState GameEvent => monad PlayerName
 nextPlayerM =
   do state <- readState
      return (nextPlayer state)
 
-playCard :: Monad monad => PlayerName -> Strategy monad -> EventSourcing GameState GameEvent monad ()
+playCard :: Monad monad => PlayerName -> Strategy IdentityT monad -> EventSourcing GameState GameEvent (IdentityT monad) ()
 playCard player strategy =
   do hand <- playerHandM player
      trick <- trickM
@@ -197,7 +256,7 @@ playCard player strategy =
      card <- lift (lift (strategy player hand trick stack))
      processGameCommandM (PlayCard player card)
 
-playMove :: Monad monad => PlayerStrategies monad -> EventSourcing GameState GameEvent monad ()
+playMove :: Monad monad => PlayerStrategies monad -> EventSourcing GameState GameEvent (IdentityT monad) ()
 playMove strategies =
   do player <- nextPlayerM
      let strategy = strategies M.! player
@@ -205,7 +264,7 @@ playMove strategies =
      playCard player strategy
 
 -- returns True if turn is over, False otherwise
-playTurn :: Monad monad => PlayerStrategies monad -> EventSourcing GameState GameEvent monad Bool
+playTurn :: Monad monad => PlayerStrategies monad -> EventSourcing GameState GameEvent (IdentityT monad) Bool
 playTurn strategies =
   do isTurnOver <- turnOverM
      if isTurnOver
@@ -216,7 +275,7 @@ playTurn strategies =
 -- strategies
 
 -- |stupid robo player
-playAlong :: Monad m => Strategy m
+playAlong :: Monad m => Strategy IdentityT m
 playAlong player hand [] stack =
   return (S.findMin hand)       -- coming up, choose a small first card
 playAlong player hand trick stack =
@@ -230,7 +289,7 @@ playAlong player hand trick stack =
           return card           -- otherwise use the minimal following card
 
 -- | interactive player
-playInteractive :: MonadIO m => Strategy m
+playInteractive :: MonadIO m => Strategy IdentityT m
 playInteractive player hand trick stack =
   liftIO $ do
   putStrLn ("Your turn, player " ++ player)
