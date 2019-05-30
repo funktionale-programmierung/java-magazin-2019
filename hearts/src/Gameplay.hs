@@ -19,6 +19,7 @@ import qualified Control.Monad.State.Lazy as State
 import Control.Monad.State.Lazy (State, StateT)
 
 import Control.Monad.Identity (Identity)
+import qualified Control.Monad.Identity as Identity
 
 import qualified Data.Sequence as Sequence
 import Data.Sequence (Seq, (><))
@@ -267,22 +268,10 @@ gameCommandEventsM gameCommand =
      let (gameState', gameEvents) = processGameCommand gameState gameCommand
      return gameEvents
 
-class MonadTrans transformer => StrategyT transformer where
-  chooseCard :: Monad monad => PlayerName -> Hand -> Trick -> [Card] -> transformer monad Card
-  liftStrategy :: Monad monad => monad a -> transformer monad a
-
 type Strategy monad = PlayerName -> Hand -> Trick -> [Card] -> monad Card
 
--- FIXME: this is how we do it, we want everything to apply
-class Monad monad => MonadToIO monad where
-  toIO :: monad a -> IO a
-
-class (Monad monad1, Monad monad2) => MonadLifting monad1 monad2 where
-  liftMonad :: (b -> monad1 a) -> monad2 (b -> monad2 a)
-
-data StrategyPackage toMonad =
-  forall monad  . (Monad monad, MonadLifting monad toMonad) =>
-    StrategyPackage (Strategy monad)
+data MonadLifting monad1 monad2  =
+  MonadLifting (forall a b . ((b -> monad1 a) -> monad2 (b -> monad2 a)))
 
 -- player with two of clubs at the start leads in the first hand
 
@@ -292,15 +281,16 @@ data Player monad = Player PlayerName (EventProcessor monad)
 playerPlay (Player _ play) event = play event
   
 data PlayerPackage toMonad =
-  forall monad . MonadLifting monad toMonad =>
-    PlayerPackage (Player monad)
+  forall monad .
+    PlayerPackage (Player monad) (MonadLifting monad toMonad)
 
-{-
-packagePlayer :: PlayerPackage monad -> monad (Player monad)
-packagePlayer (PlayerPackage (Player playerName playerPlay)) =
-  do x <- liftMonad (playerPlay event)
-     return (Player playerName (\ event ->  x event))
--}
+
+playerPackageEventProcessorM :: PlayerPackage toMonad -> toMonad (GameEvent -> toMonad [GameCommand])
+playerPackageEventProcessorM (PlayerPackage (Player _ play) (MonadLifting lift)) =
+  lift play
+
+playerPackageName :: PlayerPackage monad -> PlayerName
+playerPackageName (PlayerPackage (Player playerName _) _) = playerName
 
 data PlayerState =
   PlayerState { playerHand :: Hand,
@@ -379,49 +369,63 @@ playGame players cards =
       hands = M.fromList (zip playerNames (map S.fromList (distribute (length playerNames) cards)))
   in playCommand players (DealHands hands)
 
+
 -- FIXME: todo State monad with 4-tuple into one
 
-stateToIO :: (b -> StateT state IO a) -> IO (b -> IO a)
-stateToIO action =
-  do ioref <- IORef.newIORef undefined
+
+stateToIO :: MonadLifting (StateT state IO) IO
+stateToIO =
+  MonadLifting (
+   \ action ->
+     do ioref <- IORef.newIORef undefined
+        return (\ x -> do
+           state <- IORef.readIORef ioref
+           (result, newState) <- State.runStateT (action x) state 
+           IORef.writeIORef ioref newState
+           return result))
+
+stateToState :: MonadLifting (StateT state1 (State state2)) (State (state1, state2))
+stateToState =
+  MonadLifting (
+   \ action ->
      return (\ x -> do
-        state <- IORef.readIORef ioref
-        (result, newState) <- State.runStateT (action x) state 
-        IORef.writeIORef ioref newState
-        return result)
+                (state1, state2) <- State.get
+                let ((result, state1'), state2') = State.runState (State.runStateT (action x) state1) state2
+                State.put (state1', state2')
+                return result))
 
-instance MonadLifting (StateT state IO) IO where
-  liftMonad = stateToIO
+identityToIO :: MonadLifting Identity IO
+identityToIO =
+  MonadLifting (
+  \ action ->
+    return (\ x -> return (Identity.runIdentity (action x))))
 
-stateToState :: (b -> StateT state1 (State state2) a) -> State (state1, state2) (b -> State (state1, state2) a)
-stateToState action =
-  return (\ x -> do
-             (state1, state2) <- State.get
-             let ((result, state1'), state2') = State.runState (State.runStateT (action x) state1) state2
-             State.put (state1', state2')
-             return result)
+-- FIXME unsatisfactory
+composeMonadLifting
+  :: Monad monad2 =>
+     MonadLifting monad1 monad2
+     -> MonadLifting monad2 monad3
+     -> (b -> monad1 a)
+     -> monad2 (monad3 (b -> monad3 a))
+composeMonadLifting (MonadLifting lift1) (MonadLifting lift2) =
+  let lift3 f = -- b -> monad1 a, need monad3 -N
+        do f' <- lift1 f -- monad2 (b -> monad2 a)
+           return (lift2 f')
+  in lift3
 
-instance MonadLifting (StateT state1 (State state2)) (State (state1, state2)) where
-  liftMonad = stateToState
+players :: Monad monad => [PlayerPackage monad] -> monad (Players monad)
+players playerPackages =
+  do eventProcessors <- mapM playerPackageEventProcessorM playerPackages
+     let playerNames = map playerPackageName playerPackages
+     return (M.fromList (zip playerNames eventProcessors))
 
-{-
--- FIXME: zap type class, compose explicitly
-instance (MonadLifting monad1 monad2, MonadLifting monad2 monad3) => MonadLifting monad1 monad3 where
-  liftMonad f = -- f :: b -> monad1 a, need f' :: b -> monad2 a
-    liftMonad -- 2 -> 3
-      (\ x ->
-         do f' <- liftMonad f
-            f' x)
--}
+ioPlayer :: PlayerName -> Strategy IO -> PlayerPackage IO
+ioPlayer playerName strategy =
+  let player = strategyPlayer playerName strategy
+  in PlayerPackage player stateToIO
 
-{-    
-strategyToPlayerPackage ::
-  (MonadLifting (StateT PlayerState monad) toMonad, Monad monad) =>
-  PlayerName -> Strategy monad -> PlayerPackage toMonad
-strategyToPlayerPackage playerName strategy =
-  PlayerPackage (strategyPlayer playerName strategy)
--}
-        
+
+
 -- |distribute n-ways
 distribute :: Int -> [a] -> [[a]]
 distribute m xs = [ extract (drop i xs) | i <- [0 .. m-1]]
@@ -432,7 +436,7 @@ distribute m xs = [ extract (drop i xs) | i <- [0 .. m-1]]
 -- strategies
 
 -- |stupid robo player
-playAlong :: Monad m => Strategy m
+playAlong :: Strategy Identity
 playAlong player hand [] stack =
   return (S.findMin hand)       -- coming up, choose a small first card
 playAlong player hand trick stack =
