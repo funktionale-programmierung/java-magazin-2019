@@ -34,6 +34,8 @@ import Data.IORef (IORef)
 
 import qualified Control.Monad as Monad
 
+import Debug.Trace (trace)
+
 import Cards
 
 -- Games
@@ -76,9 +78,11 @@ data GameState =
   }
   deriving Show
 
+emptyGameState = GameState [] M.empty M.empty []
+
 gameAtBeginning :: GameState -> Bool
 gameAtBeginning gameState =
-  (null (stateTrick gameState)) && (all null (M.elems (stateHands gameState)))
+  (null (stateTrick gameState)) && (all null (M.elems (stateStacks gameState)))
 
 -- |rotate assumes length of input > 0
 rotate :: [a] -> [a]
@@ -106,7 +110,7 @@ nextPlayer state =
 
 playValid :: GameState -> PlayerName -> Card -> Bool
 playValid gameState playerName card =
-  -- FIXME: validate that the player has the card
+  -- FIXME: validate that the player has the card, and that its valid for the trick
   if gameAtBeginning gameState
   then card == twoOfClubs
   else nextPlayer gameState == playerName
@@ -133,6 +137,7 @@ addToStack playerStack player cards =
   M.alter (fmap (cards++)) player playerStack
 
 processGameEvent :: GameState -> GameEvent -> GameState
+processGameEvent state event | trace ("processGameEvent " ++ show state ++ " " ++ show event) False = undefined
 processGameEvent state (HandsDealt hands) =
   GameState { statePlayers = M.keys hands,
               stateHands = hands,
@@ -141,7 +146,7 @@ processGameEvent state (HandsDealt hands) =
 processGameEvent state (PlayerTurn player) =
   state { statePlayers = rotateTo player (statePlayers state) }
 processGameEvent state (CardPlayed player card) =
-  GameState { statePlayers = rotate (statePlayers state),
+  GameState { statePlayers = rotate (rotateTo player (statePlayers state)),
               stateHands = takeCard (stateHands state) player card,
               stateStacks = stateStacks state,
               stateTrick = (player, card) : (stateTrick state) }
@@ -166,9 +171,9 @@ makeStateEventSourcing :: Monad monad => state -> GameEventSourcing (StateT Game
 makeStateEventSourcing state =
   EventSourcing State.get processGameEventM
 
-makeIOEventSourcing :: (state -> event -> IO state) -> IO (EventSourcing IO state event)
-makeIOEventSourcing processEventM' =
-  do stateRef <- IORef.newIORef undefined -- FIXME
+makeIOEventSourcing :: (state -> event -> IO state) -> state -> IO (EventSourcing IO state event)
+makeIOEventSourcing processEventM' state =
+  do stateRef <- IORef.newIORef state
      eventsRef <- IORef.newIORef []
      let readStateM = IORef.readIORef stateRef
      let processEventM event =
@@ -179,7 +184,7 @@ makeIOEventSourcing processEventM' =
      return (EventSourcing readStateM processEventM)
 
 makeGameIOEventSourcing :: IO (GameEventSourcing IO)
-makeGameIOEventSourcing = makeIOEventSourcing (\ state event -> return (processGameEvent state event))
+makeGameIOEventSourcing = makeIOEventSourcing (\ state event -> return (processGameEvent state event)) emptyGameState
 
 playerHandM :: Monad monad => GameEventSourcing monad -> PlayerName -> monad Hand
 playerHandM eventSourcing player =
@@ -211,11 +216,12 @@ data GameCommand =
   deriving Show
 
 processGameCommand :: GameState -> GameCommand -> (GameState, [GameEvent])
+processGameCommand state command | trace ("processGameCommand " ++ show (gameAtBeginning state) ++ " " ++ show command ++ " " ++ show state) False = undefined
 processGameCommand state (DealHands hands) =
   let event = HandsDealt hands
   in (processGameEvent state event, [event])
 processGameCommand state (PlayCard player card) =
-  if playValid state player card
+  if trace (show "processGameCommand " ++ show (playValid state player card)) (playValid state player card)
   then   
     let event1 = CardPlayed player card
         state1 = processGameEvent state event1
@@ -224,8 +230,13 @@ processGameCommand state (PlayCard player card) =
               trickTaker = whoTakesTrick trick
               event2 = TrickTaken trickTaker trick
               state2 = processGameEvent state event2
-          in (state2, [event1, event2, PlayerTurn trickTaker])
-        else (state1, [event1, PlayerTurn (nextPlayer state1)])
+              event3 = PlayerTurn trickTaker
+              state3 = processGameEvent state event3
+          in (state3, [event1, event2, event3])
+        else
+          let event2 = PlayerTurn (nextPlayer state1)
+              state2 = processGameEvent state event2
+          in (state2, [event1, event2])
   else (state, [])
 
 whoTakesTrickM :: Monad monad => GameEventSourcing monad -> monad (PlayerName, Trick)
@@ -254,6 +265,7 @@ currentTrickM ges =
   do state <- eventSourcingReadStateM ges
      return (stateTrick state)
 
+-- See - error-prone!
 processGameCommandM :: Monad monad => GameEventSourcing monad -> GameCommand -> monad [GameEvent]
 processGameCommandM ges (DealHands hands) =
   do let event = HandsDealt hands
@@ -273,10 +285,14 @@ processGameCommandM ges (PlayCard player card) =
                 let trickTaker = whoTakesTrick trick
                 let event2 = TrickTaken trickTaker trick
                 eventSourcingProcessEventM ges event2
-                return [event1, event2, PlayerTurn trickTaker]
+                let event3 = PlayerTurn trickTaker
+                eventSourcingProcessEventM ges event3
+                return [event1, event2, event3]
             else
               do nextPlayer <- nextPlayerM ges
-                 return [event1, PlayerTurn nextPlayer]
+                 let event2 = PlayerTurn nextPlayer
+                 eventSourcingProcessEventM ges event2
+                 return [event1, event2]
       else return []
 
 nextPlayerM :: Monad monad => GameEventSourcing monad -> monad (PlayerName)
@@ -285,10 +301,12 @@ nextPlayerM ges =
      return (nextPlayer state)
 
 gameCommandEventsM :: Monad monad => GameEventSourcing monad -> GameCommand -> monad [GameEvent]
+gameCommandEventsM ges gameCommand | trace ("gameCommandsEventsM " ++ show gameCommand) False = undefined
 gameCommandEventsM ges gameCommand =
   do gameState <- eventSourcingReadStateM ges
      let (gameState', gameEvents) = processGameCommand gameState gameCommand
-     return gameEvents
+     mapM_ (eventSourcingProcessEventM ges) gameEvents
+     return (trace ("gameEvents " ++ show gameEvents) gameEvents)
 
 type Strategy monad = PlayerName -> Hand -> Trick -> [Card] -> monad Card
 
@@ -325,11 +343,13 @@ playerProcessGameEvent playerName state (HandsDealt hands) =
   PlayerState { playerHand = hands M.! playerName,
                 playerTrick = [],
                 playerStack = [] }
+playerProcessGameEvent playerName state (PlayerTurn playerName') = state
 playerProcessGameEvent playerName state (CardPlayed player card)
   | player == playerName =
     state { playerHand = removeCard card (playerHand state),
             playerTrick = (player, card) : (playerTrick state) }
-  | otherwise = state
+  | otherwise = 
+    state { playerTrick = (player, card) : (playerTrick state) }
 playerProcessGameEvent playerName state (TrickTaken player trick)
   | player == playerName =
     state { playerTrick = [],
@@ -366,6 +386,7 @@ strategyPlayer playerName strategy =
 type Players monad = M.Map PlayerName (EventProcessor monad)
 
 playEvent :: Monad monad => Players monad -> GameEvent -> monad (Seq GameCommand)
+playEvent players gameEvent | trace ("playEvent " ++ show gameEvent) False = undefined
 playEvent players gameEvent =
   Monad.foldM (\ gameCommands playerProcessor ->
                 do gameCommands' <- playerProcessor gameEvent
@@ -374,14 +395,15 @@ playEvent players gameEvent =
               players
 
 playCommand :: Monad monad => GameEventSourcing monad -> Players monad -> GameCommand -> monad ()
+playCommand ges players gameCommand | trace ("playCommand " ++ show gameCommand) False = undefined
 playCommand ges players gameCommand =
   do events <- gameCommandEventsM ges gameCommand
      gameOver <- gameOverM ges -- FIXME: should be GameOver in events
-     if gameOver
+     if (trace (show "gameOver " ++ show gameOver) gameOver)
      then return ()
      else
        do gameCommandss <- mapM (playEvent players) (Sequence.fromList events)
-          let gameCommands = Monad.join gameCommandss
+          let gameCommands = trace (show "gameCommands " ++ show events) (Monad.join gameCommandss)
           mapM_ (playCommand ges players) gameCommands
           return ()
 
@@ -435,14 +457,14 @@ composeMonadLifting (MonadLifting lift1) (MonadLifting lift2) =
            return (lift2 f')
   in lift3
 
-players :: Monad monad => [PlayerPackage monad] -> monad (Players monad)
-players playerPackages =
+unpackPlayers :: Monad monad => [PlayerPackage monad] -> monad (Players monad)
+unpackPlayers playerPackages =
   do eventProcessors <- mapM playerPackageEventProcessorM playerPackages
      let playerNames = map playerPackageName playerPackages
      return (M.fromList (zip playerNames eventProcessors))
 
-ioPlayer :: PlayerName -> Strategy IO -> PlayerPackage IO
-ioPlayer playerName strategy =
+ioPlayerPackage :: PlayerName -> Strategy IO -> PlayerPackage IO
+ioPlayerPackage playerName strategy =
   let player = strategyPlayer playerName strategy
   in PlayerPackage player stateToIO
 
@@ -498,3 +520,10 @@ getNumber (lo, hi) = do
   else
     do putStrLn ("Input must be between " ++ (show lo) ++ " and " ++ (show hi) ++ ". Try again")
        getNumber (lo, hi)
+
+gameInteractive :: IO ()
+gameInteractive =
+  let playerPackages = map (\ playerName -> ioPlayerPackage playerName playInteractive) ["Mike", "Peter", "Annette", "Nicole"]
+  in do players <- unpackPlayers playerPackages
+        eventSourcing <- makeGameIOEventSourcing
+        playGame eventSourcing players deck
