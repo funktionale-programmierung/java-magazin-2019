@@ -141,7 +141,7 @@ processGameEvent state event | trace ("processGameEvent " ++ show state ++ " " +
 processGameEvent state (HandsDealt hands) =
   GameState { statePlayers = M.keys hands,
               stateHands = hands,
-              stateStacks = M.empty,
+              stateStacks = M.fromList (map (\ playerName -> (playerName, [])) (M.keys hands)),
               stateTrick = [] }
 processGameEvent state (PlayerTurn player) =
   state { statePlayers = rotateTo player (statePlayers state) }
@@ -153,7 +153,7 @@ processGameEvent state (CardPlayed player card) =
 processGameEvent state (TrickTaken player trick) =
   GameState { statePlayers = statePlayers state,
               stateHands = stateHands state,
-              stateStacks = addToStack (stateStacks state) player (map snd trick),
+              stateStacks = trace (show "addToStack " ++ show player ++ " " ++ show (map snd trick) ++ " " ++ show (addToStack (stateStacks state) player (map snd trick))) (addToStack (stateStacks state) player (map snd trick)),
               stateTrick = [] }
 
 
@@ -221,7 +221,7 @@ processGameCommand state (DealHands hands) =
   let event = HandsDealt hands
   in (processGameEvent state event, [event])
 processGameCommand state (PlayCard player card) =
-  if trace (show "processGameCommand " ++ show (playValid state player card)) (playValid state player card)
+  if trace (show "processGameCommand valid " ++ show player ++ " " ++ show card ++ " " ++ show (playValid state player card)) (playValid state player card)
   then   
     let event1 = CardPlayed player card
         state1 = processGameEvent state event1
