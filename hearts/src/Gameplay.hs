@@ -7,6 +7,7 @@
 {-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE TupleSections #-}
 
 module Gameplay where
 
@@ -37,12 +38,16 @@ import qualified Control.Monad as Monad
 import Debug.Trace (trace)
 
 import Cards
+import Shuffle
 
 -- Games
 type PlayerName = String
 
 -- last card is at the front
 type Trick = [(PlayerName, Card)]
+
+cardsOfTrick :: Trick -> [Card]
+cardsOfTrick = map snd
 
 whoTakesTrick :: Trick -> PlayerName
 whoTakesTrick [] = undefined
@@ -141,7 +146,7 @@ processGameEvent state event | trace ("processGameEvent " ++ show state ++ " " +
 processGameEvent state (HandsDealt hands) =
   GameState { statePlayers = M.keys hands,
               stateHands = hands,
-              stateStacks = M.fromList (map (\ playerName -> (playerName, [])) (M.keys hands)),
+              stateStacks = M.fromList (map (, []) (M.keys hands)),
               stateTrick = [] }
 processGameEvent state (PlayerTurn player) =
   state { statePlayers = rotateTo player (statePlayers state) }
@@ -151,10 +156,9 @@ processGameEvent state (CardPlayed player card) =
               stateStacks = stateStacks state,
               stateTrick = (player, card) : (stateTrick state) }
 processGameEvent state (TrickTaken player trick) =
-  GameState { statePlayers = statePlayers state,
-              stateHands = stateHands state,
-              stateStacks = trace (show "addToStack " ++ show player ++ " " ++ show (map snd trick) ++ " " ++ show (addToStack (stateStacks state) player (map snd trick))) (addToStack (stateStacks state) player (map snd trick)),
-              stateTrick = [] }
+  state { stateStacks = trace (show "addToStack " ++ show player ++ " " ++ show (cardsOfTrick trick) ++ " " ++ show (addToStack (stateStacks state) player (cardsOfTrick trick)))
+                            (addToStack (stateStacks state) player (cardsOfTrick trick)),
+          stateTrick = [] }
 
 
 data EventSourcing monad state event =
@@ -353,8 +357,9 @@ playerProcessGameEvent playerName state (CardPlayed player card)
 playerProcessGameEvent playerName state (TrickTaken player trick)
   | player == playerName =
     state { playerTrick = [],
-            playerStack = (map snd trick) ++ (playerStack state) }
-  | otherwise = state
+            playerStack = (cardsOfTrick trick) ++ (playerStack state) }
+  | otherwise =
+    state { playerTrick = [] } 
 
 playerProcessGameEventM :: Monad monad => PlayerName -> GameEvent -> StateT PlayerState monad ()
 playerProcessGameEventM playerName event =
@@ -407,11 +412,12 @@ playCommand ges players gameCommand =
           mapM_ (playCommand ges players) gameCommands
           return ()
 
-playGame :: Monad monad => GameEventSourcing monad -> Players monad -> [Card] -> monad ()
-playGame ges players cards =
+playGame :: MonadIO monad => GameEventSourcing monad -> Players monad -> [Card] -> monad ()
+playGame ges players cards = do
+  shuffledCards <- liftIO $ shuffleRounds 10 cards
   let playerNames = M.keys players
-      hands = M.fromList (zip playerNames (map S.fromList (distribute (length playerNames) cards)))
-  in playCommand ges players (DealHands hands)
+      hands = M.fromList (zip playerNames (map S.fromList (distribute (length playerNames) shuffledCards)))
+  playCommand ges players (DealHands hands)
 
 
 -- FIXME: todo State monad with 4-tuple into one
@@ -470,17 +476,10 @@ ioPlayerPackage playerName strategy =
 
 
 
--- |distribute n-ways
-distribute :: Int -> [a] -> [[a]]
-distribute m xs = [ extract (drop i xs) | i <- [0 .. m-1]]
-  where
-    extract [] = []
-    extract (x:xs) = x : extract (drop (m-1) xs)
-
 -- strategies
 
 -- |stupid robo player
-playAlong :: Strategy Identity
+playAlong :: Strategy IO
 playAlong player hand [] stack =
   return (S.findMin hand)       -- coming up, choose a small first card
 playAlong player hand trick stack =
@@ -501,7 +500,7 @@ playInteractive player hand trick stack =
        [] ->
          putStrLn "You lead the next trick."
        _ ->
-         putStrLn ("Current trick: " ++ show (reverse (map snd trick)))
+         putStrLn ("Cards on table: " ++ show (reverse trick))
      let myhand = S.elems hand
          ncards = S.size hand
      putStrLn ("Your hand: " ++ pretty myhand)
