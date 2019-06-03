@@ -95,30 +95,6 @@ processGameEventM event =
      Writer.tell [event]
      return ()
 
-processGameCommand :: GameState -> GameCommand -> (GameState, [GameEvent])
-processGameCommand state command | trace ("processGameCommand " ++ show (gameAtBeginning state) ++ " " ++ show command ++ " " ++ show state) False = undefined
-processGameCommand state (DealHands hands) =
-  let event = HandsDealt hands
-  in (processGameEvent state event, [event])
-processGameCommand state (PlayCard player card) =
-  if trace (show "processGameCommand valid " ++ show player ++ " " ++ show card ++ " " ++ show (playValid state player card)) (playValid state player card)
-  then   
-    let event1 = CardPlayed player card
-        state1 = processGameEvent state event1
-    in  if turnOver state1 then
-          let trick = stateTrick state1
-              trickTaker = whoTakesTrick trick
-              event2 = TrickTaken trickTaker trick
-              state2 = processGameEvent state event2
-              event3 = PlayerTurn trickTaker
-              state3 = processGameEvent state event3
-          in (state3, [event1, event2, event3])
-        else
-          let event2 = PlayerTurn (nextPlayer state1)
-              state2 = processGameEvent state event2
-          in (state2, [event1, event2])
-  else (state, [])
-
 whoTakesTrickM :: Monad monad => GameEventSourcing monad -> monad (PlayerName, Trick)
 whoTakesTrickM ges = do
   state <- eventSourcingReadStateM ges
