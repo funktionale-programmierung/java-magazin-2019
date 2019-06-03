@@ -81,11 +81,6 @@ playerStackM ges player =
   do state <- eventSourcingReadStateM ges
      return (stateStacks state M.! player)
 
-trickM :: Monad monad => GameEventSourcing monad -> monad Trick
-trickM ges =
-  do state <- eventSourcingReadStateM ges
-     return (stateTrick state)
-
 type StateWriterEventSourcing state event monad = StateT state (WriterT [event] monad)
 
 processGameEventM :: Monad monad => GameEvent -> StateWriterEventSourcing GameState GameEvent monad ()
