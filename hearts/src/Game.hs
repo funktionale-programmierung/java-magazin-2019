@@ -187,3 +187,14 @@ processGameCommand state (PlayCard player card) =
           in (state2, [event1, event2])
   else (state, [])
 
+
+-- |read number in given range from terminal
+getNumber :: (Num a, Ord a, Read a, Show a) => (a, a) -> IO a
+getNumber (lo, hi) = do
+  s <- getLine
+  let input = read s
+  if lo <= input && input <= hi
+  then return input
+  else
+    do putStrLn ("Input must be between " ++ (show lo) ++ " and " ++ (show hi) ++ ". Try again")
+       getNumber (lo, hi)
