@@ -263,17 +263,6 @@ instance Strategy' PlayInteractive (StateT PlayerState IO) where
 instance Player' PlayInteractive (StateT PlayerState IO) GameEvent GameCommand where
    play' (player@(PlayInteractive playerName)) event = strategyPlay' player playerName event
 
--- |read number in given range from terminal
-getNumber :: (Num a, Ord a, Read a, Show a) => (a, a) -> IO a
-getNumber (lo, hi) = do
-  s <- getLine
-  let input = read s
-  if lo <= input && input <= hi
-  then return input
-  else
-    do putStrLn ("Input must be between " ++ (show lo) ++ " and " ++ (show hi) ++ ". Try again")
-       getNumber (lo, hi)
-
 gameInteractive :: IO ()
 gameInteractive =
   do let players1 = addPlayer' emptyPlayers "Mike" (PlayInteractive "Mike")
