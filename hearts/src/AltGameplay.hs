@@ -190,28 +190,30 @@ emptyPlayerState = PlayerState { playerHand = S.empty,
                                  playerTrick = [],
                                  playerStack = []
                                }
+modifyHand  f = State.modify (\playerState -> playerState { playerHand = f (playerHand playerState)})
+modifyTrick f = State.modify (\playerState -> playerState { playerTrick = f (playerTrick playerState)})
+modifyStack f = State.modify (\playerState -> playerState { playerStack = f (playerStack playerState)})
 
 processPlayerEvent :: (HasPlayerState m, PlayerConstraints m) => PlayerName -> GameEvent -> m ()
 processPlayerEvent playerName gameEvent =
   case gameEvent of
     HandsDealt hands ->
-      State.modify (\playerState -> 
-                      playerState { playerHand = hands M.! playerName,
-                                    playerTrick = [],
-                                    playerStack = [] })
+      State.put (PlayerState { playerHand = hands M.! playerName,
+                               playerTrick = [],
+                               playerStack = [] })
 
     PlayerTurn turnPlayerName ->
       return ()
 
     CardPlayed cardPlayerName card -> do
       when (playerName == cardPlayerName) $
-        State.modify (\playerState -> playerState { playerHand = removeCard card (playerHand playerState) })
-      State.modify (\playerState -> playerState { playerTrick = (cardPlayerName, card) : playerTrick playerState })
+        modifyHand (removeCard card)
+      modifyTrick ((cardPlayerName, card) :)
 
     TrickTaken trickPlayerName trick -> do
       when (playerName == trickPlayerName) $
-        State.modify (\playerState -> playerState { playerStack = cardsOfTrick trick ++ playerStack playerState })
-      State.modify (\playerState -> playerState { playerTrick = [] })
+        modifyStack (cardsOfTrick trick ++)
+      modifyTrick (const [])
 
     GameOver ->
       return ()
