@@ -25,8 +25,6 @@ allRanks = [Numeric i | i <- [2..10]] ++ [Jack, Queen, King, Ace]
 data Card = Card { suit :: Suit, rank :: Rank }
   deriving (Show, Eq, Ord)
 
-cardSuit = suit -- FIXME
-
 -- |cardBeats c1 c2 returns True, if c1 beats c2: they have the same suit and c1's rank is higher
 cardBeats :: Card -> Card -> Bool
 cardBeats givenCard c = suit givenCard == suit c
@@ -35,20 +33,20 @@ cardBeats givenCard c = suit givenCard == suit c
 
 -- |full deck of all cards
 deck :: [Card]
-deck = [Card {rank= r, suit= s} | r <- allRanks, s <- allSuits]
+deck = [Card suit rank | rank <- allRanks, suit <- allSuits]
 
 
 -- |during the game, a hand contains at least one card
 type Hand = Set Card
 
 isHandEmpty :: Hand -> Bool
-isHandEmpty = Set.null
+isHandEmpty hand = Set.null hand
 
 removeCard :: Card -> Hand -> Hand
-removeCard = Set.delete
+removeCard card hand = Set.delete card hand
 
 containsCard :: Card -> Hand -> Bool
-containsCard = Set.member
+containsCard card hand = Set.member card hand
 
 {-
 -- choose a card from the hand that beats the given card if possible
