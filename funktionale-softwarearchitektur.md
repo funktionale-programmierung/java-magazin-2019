@@ -58,10 +58,6 @@ führen.
 
 ## Überblick
 
-FIXME
-
-## Programmieren mit unveränderlichen Daten
-
 Wir erklären die funktionale Softwarearchitektur anhand des
 Kartenspiel *Hearts* [^4], von dem wir nur die wichtigsten Teile
 umsetzen:
@@ -75,6 +71,14 @@ ausgespielt, muss die Spielerin den Stich einziehen, deren Karte die
 gleiche Farbe wie die Eröffnungskarte hat sowie den höchsten Wert.
 Ziel ist, mit den eingezogenen Karten einen möglichst geringen
 Punktestand zu erreichen.
+
+FIXME
+
+Architekturüberblick, Events, Commands
+
+## Programmieren mit unveränderlichen Daten
+
+FIXME Einleitung
 
 ### Kartenspiel modellieren
 
@@ -155,8 +159,8 @@ folgendermaßen ausgedruckt:
 ```
 
 Für die Umsetzung von Hearts müssen die Karten repräsentiert werden,
-die eine Spielerin auf der Hand hat - die repräsentieren wir als Menge
-von Karten:
+die eine Spielerin auf der Hand hat - die ist als Menge von Karten
+repräsentiert:
 
 ``` haskell
 type Hand = Set Card
@@ -164,8 +168,57 @@ type Hand = Set Card
 
 Wir nehmen an, dass das Standard-Modul `Set`, das hier benutzt wird,
 explizit importiert wurde.  Dort steht `type` und nicht `data`, weil
-kein neuer Typ definiert wurde sondern nur ein Typsynonym - `Hand`
-steht für `Set Card`,  eine Menge von Karten.
+kein neuer Typ definiert wurde sondern nur ein Typsynonym.
+
+Einige Hilfsdefinitionen erleichtern den Umgang mit dem Typ `Hand`.
+Zunächst die Funktion `isHandEmpty` - der Typ `Hand -> Bool` bedeutet
+"Funktion, die eine Hand als Eingabe nimmt und ein `Bool` als Ausgabe
+liefert:
+
+``` haskell
+isHandEmpty :: Hand -> Bool
+isHandEmpty hand = Set.null hand
+```
+
+Die nächste Funktion `containsCard` ist zweistellig und prüft mit
+Hilfe der Library-Funktion `Set.member`, ob eine
+gegebene Karte zu einer Hand gehört:
+
+``` haskell
+containsCard :: Card -> Hand -> Bool
+containsCard card hand = Set.member card hand
+```
+
+Die merkwürdige Typsystem `Card -> Hand -> Bool` wird erst deutlich,
+wenn sie korrekt geklammert wird, nämlich von rechts: `Card -> (Hand
+-> Bool)`  Das bedeutet, dass die Funktion zunächst eine Karte
+akzeptiert und dann *eine Funktion liefert*, die ihrerseits eine Hand
+akzeptiert und dann einen booleschen Wert zurückliefert.  Streng
+genommen kennt Haskell also nur einstellige Funktionen und "simuliert"
+höherstellige Funktionen durch diese Technik.
+
+Die nächste Funktion schließlich zeigt endlich beispielhaft, wie der
+Umgang mit unveränderlichen Daten funktioniert - `removeCard` entfernt
+eine Karte aus einer Hand:
+
+``` haskell
+removeCard :: Card -> Hand -> Hand
+removeCard card hand = Set.delete card hand
+```
+
+In typischem Java hätte diese Methode eine Signatur wie `void
+removeCard(Card card)` und würde den Zustand des `Hand`-Objekts
+verändern.  Nicht so in der funktionalen Programmierung, wo
+`removeCard` eine neue Hand liefert.  Nach:
+
+``` haskell
+hand2 = removeCard card hand1
+```
+
+
+
+FIXME: Typsignatur
+
 
 ### Spiel-Logik
 
