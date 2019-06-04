@@ -15,6 +15,8 @@ import qualified Data.Foldable as F
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 
+import Debug.Trace (trace)
+
 import Cards
 import Gamedata
 import qualified Shuffle
@@ -39,9 +41,15 @@ data GameEvent =
   | PlayerTurn PlayerName
   | CardPlayed PlayerName Card
   | TrickTaken PlayerName Trick
-  deriving Show
+  | GameOver
+  deriving (Eq, Show)
 
 -- different
+type StrategyConstraints m = (HasPlayerState m, MonadIO m)
+
+data PlayerStrategy
+  = PlayerStrategy (forall m . StrategyConstraints m => m Card)
+
 type PlayerConstraints m = (MonadIO m, MonadWriter [GameCommand] m)
 
 data PlayerCommandProcessor =
@@ -57,51 +65,63 @@ data PlayerPackage =
 -- main entry point
 runGame :: [PlayerPackage] -> IO ()
 runGame players = do
-  -- create game monad on top of IO
-  fmap fst $ State.evalStateT (Writer.runWriterT $ gameController players) emptyGameState
+  -- create game state monad on top of IO
+  State.evalStateT (startController players) emptyGameState
+
+type HasGameState m = MonadState GameState m
 
 type GameConstraints m = (MonadIO m, MonadState GameState m, MonadWriter [GameEvent] m)
 
-gameController :: GameConstraints m => [PlayerPackage] -> m ()
-gameController players = do
+type ControllerConstraints m = (MonadIO m, MonadState GameState m)
+
+startController :: ControllerConstraints m => [PlayerPackage] -> m ()
+startController players = do
   -- setup game state
   let playerNames = map playerName players
   State.modify (\state -> state { statePlayers = playerNames })
   shuffledCards <- liftIO $ Shuffle.shuffleRounds 10 Cards.deck
   let hands = M.fromList (zip playerNames (map S.fromList (Shuffle.distribute (length playerNames) shuffledCards)))
-  playCommands players [DealHands hands]
+  gameController players [DealHands hands]
 
-playValidM :: GameConstraints m => PlayerName -> Card -> m Bool
+-- state projections
+
+playValidM :: HasGameState m => PlayerName -> Card -> m Bool
 playValidM playerName card = do
   state <- State.get
   return $ playValid state playerName card
 
-turnOverM :: GameConstraints m => m Bool
+turnOverM :: HasGameState m => m Bool
 turnOverM =
   fmap turnOver State.get
 
-nextPlayerM :: GameConstraints m => m PlayerName
+nextPlayerM :: HasGameState m => m PlayerName
 nextPlayerM =
   fmap nextPlayer State.get
 
-currentTrickM :: GameConstraints m => m Trick
+currentTrickM :: HasGameState m => m Trick
 currentTrickM =
   fmap stateTrick State.get
 
+gameOverM :: HasGameState m => m Bool
+gameOverM =
+  fmap gameOver State.get
 
 runPlayer :: PlayerConstraints m => GameEvent -> PlayerCommandProcessor -> m PlayerCommandProcessor
 runPlayer gameEvent (PlayerCommandProcessor f) =
   f gameEvent
 
 
-playCommands :: GameConstraints m => [PlayerPackage] -> [GameCommand] -> m ()
-playCommands players commands = do
-  (_, events) <- listen $ mapM_ processGameCommand commands
+gameController :: ControllerConstraints m => [PlayerPackage] -> [GameCommand] -> m ()
+gameController players commands = do
+  (_, events) <- Writer.runWriterT $ mapM_ processGameCommand commands
+  trace ("processGameCommand " ++ show commands) $ return ()
+  trace ("yields " ++ show events) $ return ()
   (players', commands') <- Writer.runWriterT $ mapM
     (\pp -> do cp' <- F.foldrM runPlayer (commandProcessor pp) events
                return pp { commandProcessor = cp' }
     ) players
-  playCommands players' commands'
+  unless (GameOver `elem` events) $
+    gameController players' commands'
 
 processGameCommand :: GameConstraints m => GameCommand -> m ()
 processGameCommand command =
@@ -118,6 +138,9 @@ processGameCommand command =
             let trickTaker = whoTakesTrick trick
             processAndPublishEvent (TrickTaken trickTaker trick)
             processAndPublishEvent (PlayerTurn trickTaker)
+            gameIsOver <- gameOverM
+            when gameIsOver $
+              processAndPublishEvent (GameOver)
           else do
             nextPlayer <- nextPlayerM
             processAndPublishEvent (PlayerTurn nextPlayer)
@@ -147,3 +170,136 @@ processGameEvent (TrickTaken playerName trick) =
   State.modify (\state -> state { stateStacks = (addToStack (stateStacks state) playerName (cardsOfTrick trick)),
                                   stateTrick = []
                                 })
+
+processGameEvent (GameOver) =
+  return ()
+
+--------------------------------------------------------------------------------
+-- players
+
+data PlayerState =
+  PlayerState { playerHand :: Hand,
+                playerTrick :: Trick,
+                playerStack :: [Card] }
+  deriving Show
+
+type HasPlayerState m = MonadState PlayerState m
+
+emptyPlayerState :: PlayerState
+emptyPlayerState = PlayerState { playerHand = S.empty,
+                                 playerTrick = [],
+                                 playerStack = []
+                               }
+
+processPlayerEvent :: (HasPlayerState m, PlayerConstraints m) => PlayerName -> GameEvent -> m ()
+processPlayerEvent playerName gameEvent =
+  case gameEvent of
+    HandsDealt hands ->
+      State.modify (\playerState -> 
+                      playerState { playerHand = hands M.! playerName,
+                                    playerTrick = [],
+                                    playerStack = [] })
+
+    PlayerTurn turnPlayerName ->
+      return ()
+
+    CardPlayed cardPlayerName card -> do
+      when (playerName == cardPlayerName) $
+        State.modify (\playerState -> playerState { playerHand = removeCard card (playerHand playerState) })
+      State.modify (\playerState -> playerState { playerTrick = (cardPlayerName, card) : playerTrick playerState })
+
+    TrickTaken trickPlayerName trick -> do
+      when (playerName == trickPlayerName) $
+        State.modify (\playerState -> playerState { playerStack = cardsOfTrick trick ++ playerStack playerState })
+      State.modify (\playerState -> playerState { playerTrick = [] })
+
+    GameOver ->
+      return ()
+
+makePlayerPackage :: PlayerName -> PlayerStrategy -> PlayerPackage
+makePlayerPackage playerName strategy =
+  PlayerPackage playerName $ strategyPlayer playerName strategy emptyPlayerState
+
+strategyPlayer :: PlayerName -> PlayerStrategy -> PlayerState -> PlayerCommandProcessor
+strategyPlayer playerName strategy@(PlayerStrategy chooseCard) playerState =
+  PlayerCommandProcessor $ \ event -> do
+    (_, nextPlayerState) <- flip State.runStateT playerState $ do
+      processPlayerEvent playerName event
+      playerState <- State.get
+      case event of
+        HandsDealt _ ->
+          when (S.member twoOfClubs (playerHand playerState)) $
+            Writer.tell [PlayCard playerName twoOfClubs]
+
+        PlayerTurn turnPlayerName ->
+          when (playerName == turnPlayerName) $ do
+            liftIO $ putStrLn ("Your turn, " ++ playerName)
+            card <- chooseCard
+            Writer.tell [PlayCard playerName card]
+
+        CardPlayed _ _ ->
+          return ()
+
+        TrickTaken _ _ ->
+          return ()
+
+        GameOver ->
+          return ()
+
+    return (strategyPlayer playerName strategy nextPlayerState)
+
+
+-- stupid robo player
+playAlongStrategy :: PlayerStrategy
+playAlongStrategy =
+  PlayerStrategy $ do
+  playerState <- State.get
+  let trick = playerTrick playerState
+      hand = playerHand playerState
+      (_, firstCard) = last trick
+      firstSuit = suit firstCard
+      followingCardsOnHand = S.filter ((== firstSuit) . suit) hand
+  case trick of
+    [] ->
+      return (S.findMin hand)
+    _ ->
+      case S.lookupMin followingCardsOnHand of
+        Nothing ->
+          return (S.findMax hand) -- any card is fine, so try to get rid of high hearts
+        Just card ->
+          return card           -- otherwise use the minimal following card
+
+-- |interactive player
+playInteractive :: PlayerStrategy
+playInteractive =
+  PlayerStrategy $ do
+  playerState <- State.get
+  let trick = playerTrick playerState
+      hand = playerHand playerState
+  case trick of
+    [] ->
+      liftIO $ putStrLn "You lead the next trick!"
+    _ ->
+      liftIO $ putStrLn ("Cards on table: " ++ show (reverse trick))
+  let myhand = S.elems hand
+      ncards = S.size hand
+  liftIO $ putStrLn ("Your hand: " ++ pretty myhand)
+  liftIO $ putStrLn ("Pick a card (1-" ++ show ncards ++ ")")
+  selected <- liftIO $ getNumber (1,ncards)
+  return (myhand !! (selected - 1))
+      
+playerMike = makePlayerPackage "Mike" playInteractive
+playerPeter = makePlayerPackage "Peter" playInteractive
+playerAnnette = makePlayerPackage "Annette" playInteractive
+playerNicole = makePlayerPackage "Nicole" playInteractive
+
+start :: IO ()
+start = runGame [playerNicole, playerAnnette, playerPeter, playerMike]
+
+{-
+remote: 
+remote: Create a pull request for 'peters-alt' on GitHub by visiting:        
+remote:      https://github.com/funktionale-programmierung/java-magazin-2019/pull/new/peters-alt        
+remote: 
+-}
+
