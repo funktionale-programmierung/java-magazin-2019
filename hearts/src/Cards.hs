@@ -1,6 +1,7 @@
 module Cards where
 
-import qualified Data.Set as S
+import qualified Data.Set as Set
+import Data.Set (Set)
 
 data Suit = Diamonds | Clubs | Spades | Hearts
   deriving (Show, Eq, Ord)
@@ -38,16 +39,16 @@ deck = [Card {rank= r, suit= s} | r <- allRanks, s <- allSuits]
 
 
 -- |during the game, a hand contains at least one card
-type Hand = S.Set Card
+type Hand = Set Card
 
 isHandEmpty :: Hand -> Bool
-isHandEmpty = S.null
+isHandEmpty = Set.null
 
 removeCard :: Card -> Hand -> Hand
-removeCard = S.delete
+removeCard = Set.delete
 
 containsCard :: Card -> Hand -> Bool
-containsCard = S.member
+containsCard = Set.member
 
 {-
 -- choose a card from the hand that beats the given card if possible
