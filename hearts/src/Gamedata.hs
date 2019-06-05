@@ -50,9 +50,9 @@ type PlayerHands  = M.Map PlayerName Hand
 data GameState =
   GameState 
   { statePlayers :: [PlayerName],
-    stateHands :: PlayerHands,
-    stateStacks :: PlayerStacks,
-    stateTrick :: Trick
+    stateHands   :: PlayerHands,
+    stateStacks  :: PlayerStacks,
+    stateTrick   :: Trick
   }
   deriving Show
 

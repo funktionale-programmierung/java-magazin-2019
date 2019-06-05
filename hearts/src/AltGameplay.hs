@@ -15,7 +15,7 @@ import qualified Data.Foldable as F
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
 
-import Debug.Trace (trace)
+import Debug.Trace (trace, traceShowId, traceIO, traceM)
 
 import Cards
 import Gamedata
@@ -78,7 +78,9 @@ startController :: ControllerConstraints m => [PlayerPackage] -> m ()
 startController players = do
   -- setup game state
   let playerNames = map playerName players
-  State.modify (\state -> state { statePlayers = playerNames })
+  State.modify (\state -> state { statePlayers = playerNames,
+                                  stateStacks  = M.fromList (zip playerNames $ repeat [])
+                                })
   shuffledCards <- liftIO $ Shuffle.shuffleRounds 10 Cards.deck
   let hands = M.fromList (zip playerNames (map S.fromList (Shuffle.distribute (length playerNames) shuffledCards)))
   gameController players [DealHands hands]
@@ -88,7 +90,7 @@ startController players = do
 playValidM :: HasGameState m => PlayerName -> Card -> m Bool
 playValidM playerName card = do
   state <- State.get
-  return $ playValid state playerName card
+  return (playValid state playerName card)
 
 turnOverM :: HasGameState m => m Bool
 turnOverM =
@@ -106,18 +108,24 @@ gameOverM :: HasGameState m => m Bool
 gameOverM =
   fmap gameOver State.get
 
-runPlayer :: PlayerConstraints m => GameEvent -> PlayerCommandProcessor -> m PlayerCommandProcessor
-runPlayer gameEvent (PlayerCommandProcessor f) =
+runPlayer :: PlayerConstraints m => PlayerCommandProcessor -> GameEvent -> m PlayerCommandProcessor
+runPlayer (PlayerCommandProcessor f) gameEvent =
   f gameEvent
 
+announceEvent :: ControllerConstraints m => GameEvent -> m ()
+announceEvent gameEvent =
+  liftIO $ putStrLn (show gameEvent)
 
 gameController :: ControllerConstraints m => [PlayerPackage] -> [GameCommand] -> m ()
 gameController players commands = do
+  -- traceM ("** INCOMING COMMANDS " ++ show commands) 
   (_, events) <- Writer.runWriterT $ mapM_ processGameCommand commands
-  trace ("processGameCommand " ++ show commands) $ return ()
-  trace ("yields " ++ show events) $ return ()
+  mapM_ announceEvent events
+  -- st <- State.get
+  -- traceM ("** GAMESTATE: " ++ show st)
+  -- traceM ("** OUTGOING EVENTS " ++ show events)
   (players', commands') <- Writer.runWriterT $ mapM
-    (\pp -> do cp' <- F.foldrM runPlayer (commandProcessor pp) events
+    (\pp -> do cp' <- F.foldlM runPlayer (commandProcessor pp) events
                return pp { commandProcessor = cp' }
     ) players
   unless (GameOver `elem` events) $
@@ -137,10 +145,10 @@ processGameCommand command =
             trick <- currentTrickM
             let trickTaker = whoTakesTrick trick
             processAndPublishEvent (TrickTaken trickTaker trick)
-            processAndPublishEvent (PlayerTurn trickTaker)
             gameIsOver <- gameOverM
-            when gameIsOver $
-              processAndPublishEvent (GameOver)
+            if gameIsOver 
+              then processAndPublishEvent (GameOver)
+              else processAndPublishEvent (PlayerTurn trickTaker)
           else do
             nextPlayer <- nextPlayerM
             processAndPublishEvent (PlayerTurn nextPlayer)
@@ -195,7 +203,7 @@ modifyTrick f = State.modify (\playerState -> playerState { playerTrick = f (pla
 modifyStack f = State.modify (\playerState -> playerState { playerStack = f (playerStack playerState)})
 
 processPlayerEvent :: (HasPlayerState m, PlayerConstraints m) => PlayerName -> GameEvent -> m ()
-processPlayerEvent playerName gameEvent =
+processPlayerEvent playerName gameEvent = do
   case gameEvent of
     HandsDealt hands ->
       State.put (PlayerState { playerHand = hands M.! playerName,
@@ -217,6 +225,8 @@ processPlayerEvent playerName gameEvent =
 
     GameOver ->
       return ()
+  -- st <- State.get
+  -- traceM ("** AFTER PROCESSPLAYEREVENT " ++ playerName ++ " " ++ show gameEvent ++ ": " ++ show st)
 
 makePlayerPackage :: PlayerName -> PlayerStrategy -> PlayerPackage
 makePlayerPackage playerName strategy =
@@ -228,6 +238,7 @@ strategyPlayer playerName strategy@(PlayerStrategy chooseCard) playerState =
     (_, nextPlayerState) <- flip State.runStateT playerState $ do
       processPlayerEvent playerName event
       playerState <- State.get
+      -- traceM ("** PLAYER " ++ playerName ++ ": " ++ show playerState)
       case event of
         HandsDealt _ ->
           when (S.member twoOfClubs (playerHand playerState)) $
@@ -285,15 +296,16 @@ playInteractive =
       liftIO $ putStrLn ("Cards on table: " ++ show (reverse trick))
   let myhand = S.elems hand
       ncards = S.size hand
-  liftIO $ putStrLn ("Your hand: " ++ pretty myhand)
+  liftIO $ putStrLn ("Your hand:")
+  liftIO $ putStrLn (pretty (zip [(1::Integer)..] myhand))
   liftIO $ putStrLn ("Pick a card (1-" ++ show ncards ++ ")")
   selected <- liftIO $ getNumber (1,ncards)
   return (myhand !! (selected - 1))
       
-playerMike = makePlayerPackage "Mike" playInteractive
+playerMike = makePlayerPackage "Mike" playAlongStrategy
 playerPeter = makePlayerPackage "Peter" playInteractive
-playerAnnette = makePlayerPackage "Annette" playInteractive
-playerNicole = makePlayerPackage "Nicole" playInteractive
+playerAnnette = makePlayerPackage "Annette" playAlongStrategy
+playerNicole = makePlayerPackage "Nicole" playAlongStrategy
 
 start :: IO ()
 start = runGame [playerNicole, playerAnnette, playerPeter, playerMike]
