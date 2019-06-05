@@ -39,14 +39,17 @@ deck = [Card suit rank | rank <- allRanks, suit <- allSuits]
 -- |during the game, a hand contains at least one card
 type Hand = Set Card
 
+
 isHandEmpty :: Hand -> Bool
 isHandEmpty hand = Set.null hand
+
+containsCard :: Card -> Hand -> Bool
+containsCard card hand = Set.member card hand
 
 removeCard :: Card -> Hand -> Hand
 removeCard card hand = Set.delete card hand
 
-containsCard :: Card -> Hand -> Bool
-containsCard card hand = Set.member card hand
+emptyHand = Set.empty
 
 {-
 -- choose a card from the hand that beats the given card if possible
