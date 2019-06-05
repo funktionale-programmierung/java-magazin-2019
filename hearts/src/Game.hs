@@ -144,6 +144,8 @@ data PlayerState =
                 playerStack :: [Card] }
   deriving Show
 
+emptyPlayerState = PlayerState emptyHand [] []
+
 playerProcessGameEvent :: PlayerName -> PlayerState -> GameEvent -> PlayerState
 playerProcessGameEvent playerName state (HandsDealt hands) =
   PlayerState { playerHand = hands M.! playerName,

@@ -26,9 +26,12 @@ import Data.Sequence (Seq, (><))
 
 import qualified Control.Monad as Monad
 
+import Control.Monad.Trans.Free
+
 import Cards
 import Shuffle
 import Game
+import RWT
 
 import qualified Data.Map.Strict as M
 import qualified Data.Set as S
@@ -81,7 +84,7 @@ strategyPlay strategy playerName event =
      playerState <- State.get
      case event of
        HandsDealt hands ->
-         if S.member twoOfClubs (playerHand playerState)
+         if containsCard twoOfClubs (playerHand playerState)
          then return [PlayCard playerName twoOfClubs]
          else return []
        PlayerTurn name' ->
@@ -100,7 +103,7 @@ strategyPlay' strategy' playerName event =
      playerState <- State.get
      case event of
        HandsDealt hands ->
-         if S.member twoOfClubs (playerHand playerState)
+         if containsCard twoOfClubs (playerHand playerState)
          then return [PlayCard playerName twoOfClubs]
          else return []
        PlayerTurn name' ->
@@ -209,9 +212,10 @@ playCommand players gameCommand =
           mapM_ (playCommand players) gameCommands
           return ()
 
-playGame :: MonadIO monad => Players monad GameEvent GameCommand -> [Card] -> GameEventSourcingT monad ()
+playGame :: Monad monad => Players monad GameEvent GameCommand -> [Card] -> GameEventSourcingT monad ()
 playGame players cards = do
-  shuffledCards <- liftIO $ shuffleRounds 10 cards
+  -- shuffledCards <- liftIO $ shuffleRounds 10 cards
+  let shuffledCards = cards
   -- FIXME: split here
   let playerNames = M.keys players
       hands = M.fromList (zip playerNames (map S.fromList (distribute (length playerNames) shuffledCards)))
@@ -243,32 +247,32 @@ instance Strategy PlayAlong IdentityT where
 data PlayInteractive = PlayInteractive PlayerName
 
 -- oh no: only 1 state for all players
-instance Strategy' PlayInteractive (StateT PlayerState IO) where
-  chooseCard' _ playerName playerState =
-   lift (
-    do putStrLn ("Your turn, player " ++ playerName)
+instance Strategy PlayInteractive (RWT PlayerState) where
+  chooseCard _ playerName playerState =
+    do RWT.putString ("Your turn, player " ++ playerName)
        case playerTrick playerState of
          [] ->
-           putStrLn "You lead the next trick."
+           RWT.putString "You lead the next trick."
          trick ->
-           putStrLn ("Cards on table: " ++ show (reverse trick))
+           RWT.putString ("Cards on table: " ++ show (reverse trick))
        let hand = playerHand playerState
            myhand = S.elems hand
            ncards = S.size hand
-       putStrLn ("Your hand: " ++ pretty myhand)
-       putStrLn ("Pick a card (1-" ++ show ncards ++ ")")
-       selected <- getNumber (1,ncards)
-       return (myhand !! (selected - 1)))
+       RWT.putString ("Your hand: " ++ pretty myhand)
+       RWT.putString ("Pick a card (1-" ++ show ncards ++ ")")
+       selected <- RWT.getNumber (1,ncards)
+       return (myhand !! (selected - 1))
 
-instance Player' PlayInteractive (StateT PlayerState IO) GameEvent GameCommand where
-   play' (player@(PlayInteractive playerName)) event = strategyPlay' player playerName event
+instance Player PlayInteractive (RWT PlayerState) GameEvent GameCommand where
+   play (player@(PlayInteractive playerName)) event = strategyPlay player playerName event
 
 gameInteractive :: IO ()
 gameInteractive =
-  do let players1 = addPlayer' emptyPlayers "Mike" (PlayInteractive "Mike")
-         players2 = addPlayer' players1 "Peter" (PlayInteractive "Peter")
-         players3 = addPlayer' players2 "Nicole" (PlayInteractive "Nicole")
-         players4 = addPlayer' players3 "Annette" (PlayInteractive "Annette")
-     ((), events) <- State.evalStateT (runWriterT (State.evalStateT (playGame players4 deck) emptyGameState)) undefined
+  do let players1 = addPlayer (emptyPlayers :: Players Identity GameEvent GameCommand) "Mike" (PlayInteractive "Mike")
+         players2 = addPlayer players1 "Peter" (PlayInteractive "Peter")
+         players3 = addPlayer players2 "Nicole" (PlayInteractive "Nicole")
+         players4 = addPlayer players3 "Annette" (PlayInteractive "Annette")
+     let rwt = runWriterT (State.evalStateT (playGame players4 deck) emptyGameState)
+     ((), events) <- runRWTIO (runRWTIO (runRWTIO (runRWTIO (return . Identity.runIdentity) emptyPlayerState) emptyPlayerState) emptyPlayerState) emptyPlayerState rwt
      return ()
 
