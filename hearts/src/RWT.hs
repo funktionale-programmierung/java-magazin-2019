@@ -12,6 +12,9 @@ import Control.Monad.Trans.Class
 
 import Control.Monad.State.Class (MonadState, get, put)
 
+import qualified Data.IORef as IORef
+import Data.IORef (IORef)
+
 data RWF state next =
     GetString (String -> next)
   | PutString String next
@@ -26,21 +29,23 @@ instance Functor (RWF state) where
 
 type RWT' state monad a = FreeT (RWF state) monad a
 
-runRWFIO :: (forall a . monad a -> IO a) -> state -> RWT' state monad a -> IO a
-runRWFIO lower state action =
+runRWFIO :: (forall a . monad a -> IO a) -> IORef state -> RWT' state monad a -> IO a
+runRWFIO lower ioref action =
   do x <- lower (runFreeT action)
      case x of
        Pure r -> return r
        Free (GetState k) ->
-         runRWFIO lower state (k state)
+         do state <- IORef.readIORef ioref
+            runRWFIO lower ioref (k state)
        Free (PutState state action') ->
-         runRWFIO lower state action'
+         do IORef.writeIORef ioref state
+            runRWFIO lower ioref action'
        Free (GetString k) ->
          do string <- getLine
-            runRWFIO lower state (k string)
+            runRWFIO lower ioref (k string)
        Free (PutString string action') ->
          do putStrLn string
-            runRWFIO lower state action'
+            runRWFIO lower ioref action'
 
 newtype RWT state monad a = RWT { unRWT :: RWT' state monad a }
   deriving (Functor, Applicative, Monad, MonadTrans)
@@ -61,8 +66,8 @@ instance Monad monad => MonadState state (RWT state monad) where
   get = getState
   put = putState
 
-runRWTIO :: (forall a . monad a -> IO a) -> state -> RWT state monad a -> IO a
-runRWTIO lower state action = runRWFIO lower state (unRWT action)
+runRWTIO :: (forall a . monad a -> IO a) -> IORef state -> RWT state monad a -> IO a
+runRWTIO lower ioref action = runRWFIO lower ioref (unRWT action)
 
 -- |read number in given range from terminal
 getNumber :: (Num a, Ord a, Read a, Show a, Monad monad) => (a, a) -> RWT state monad a

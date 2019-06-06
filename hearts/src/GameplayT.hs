@@ -28,6 +28,9 @@ import qualified Control.Monad as Monad
 
 import Control.Monad.Trans.Free
 
+import qualified Data.IORef as IORef
+import Data.IORef (IORef)
+
 import Cards
 import Shuffle
 import Game
@@ -272,7 +275,11 @@ gameInteractive =
          players2 = addPlayer players1 "Peter" (PlayInteractive "Peter")
          players3 = addPlayer players2 "Nicole" (PlayInteractive "Nicole")
          players4 = addPlayer players3 "Annette" (PlayInteractive "Annette")
+     state1 <- IORef.newIORef emptyPlayerState
+     state2 <- IORef.newIORef emptyPlayerState
+     state3 <- IORef.newIORef emptyPlayerState
+     state4 <- IORef.newIORef emptyPlayerState
      let rwt = runWriterT (State.evalStateT (playGame players4 deck) emptyGameState)
-     ((), events) <- runRWTIO (runRWTIO (runRWTIO (runRWTIO (return . Identity.runIdentity) emptyPlayerState) emptyPlayerState) emptyPlayerState) emptyPlayerState rwt
+     ((), events) <- runRWTIO (runRWTIO (runRWTIO (runRWTIO (return . Identity.runIdentity) state1) state2) state3) state4 rwt
      return ()
 
