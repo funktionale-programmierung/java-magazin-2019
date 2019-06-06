@@ -113,6 +113,29 @@ runPlayer (PlayerCommandProcessor f) gameEvent =
   f gameEvent
 
 announceEvent :: ControllerConstraints m => GameEvent -> m ()
+announceEvent (PlayerTurn playerName) =
+  liftIO $ putStrLn ("Your turn, " ++ playerName ++ "!")
+announceEvent (CardPlayed playerName card) =
+  liftIO $ putStrLn (playerName ++ " plays " ++ pretty card)
+announceEvent (TrickTaken playerName trick) =
+  liftIO $ putStrLn (playerName ++ " takes the trick:\n" ++ pretty (cardsOfTrick trick))
+announceEvent (GameOver) = do
+  liftIO $ putStrLn "Game Over"
+  gameState <- State.get
+  let stacks = stateStacks gameState
+      playerPenalties = M.map penalty stacks
+      loserName = fst $ M.foldrWithKey (\playerName points (loserName, loserPoints) -> 
+                                          if points >= loserPoints
+                                          then (playerName, points)
+                                          else (loserName, loserPoints)
+                                       ) ("", 0) playerPenalties
+      stackInfo (playerName, points) = do
+        putStr playerName
+        putStr " has "
+        putStr (show points)
+        putStrLn " points."
+  liftIO $ mapM_ stackInfo (M.assocs playerPenalties)
+  liftIO $ putStrLn (loserName ++ " lost the game.")
 announceEvent gameEvent =
   liftIO $ putStrLn (show gameEvent)
 
@@ -246,7 +269,7 @@ strategyPlayer playerName strategy@(PlayerStrategy chooseCard) playerState =
 
         PlayerTurn turnPlayerName ->
           when (playerName == turnPlayerName) $ do
-            liftIO $ putStrLn ("Your turn, " ++ playerName)
+            -- liftIO $ putStrLn ("Your turn, " ++ playerName)
             card <- chooseCard
             Writer.tell [PlayCard playerName card]
 
