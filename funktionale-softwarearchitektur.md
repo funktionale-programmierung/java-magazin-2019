@@ -197,9 +197,9 @@ akzeptiert und dann einen booleschen Wert zurückliefert.  Streng
 genommen kennt Haskell also nur einstellige Funktionen und "simuliert"
 höherstellige Funktionen durch diese Technik.
 
-Die nächste Funktion schließlich zeigt endlich beispielhaft, wie der
-Umgang mit unveränderlichen Daten funktioniert - `removeCard` entfernt
-eine Karte aus einer Hand:
+Die nächste Funktion schließlich zeigt beispielhaft, wie der Umgang
+mit unveränderlichen Daten funktioniert - `removeCard` entfernt eine
+Karte aus einer Hand:
 
 ``` haskell
 removeCard :: Card -> Hand -> Hand
@@ -209,20 +209,92 @@ removeCard card hand = Set.delete card hand
 In typischem Java hätte diese Methode eine Signatur wie `void
 removeCard(Card card)` und würde den Zustand des `Hand`-Objekts
 verändern.  Nicht so in der funktionalen Programmierung, wo
-`removeCard` eine neue Hand liefert.  Nach:
+`removeCard` eine neue Hand liefert und die alte Hand unverändert
+lässt.  Nach:
 
 ``` haskell
 hand2 = removeCard card hand1
 ```
 
+ist `hand1` immer noch die "alte" Hand und `hand2` die neue.
 
+Das ist in Haskell nicht nur eine Konvention: Eine Funktion *kann* gar
+nicht einfach so Objekte "verändern", es handelt es sich im Sprech der
+funktionalen Programmierung immer um eine "reine" oder "pure"
+Funktion.  Diese rein funktionale Programmierung macht die Typsignatur
+enorm nützlich, weil sie wirklich alles aufführt, was in die Funktion
+hineingeht und wieder hinausgeht: Es gibt keine versteckten
+Abhängigkeiten zu globalem Zustand und alle Ausgaben stehen hinter dem
+rechten Pfeil der Signatur.
 
-FIXME: Typsignatur
+Da Hearts ein sogenanntes "Stichspiel" ist, hat der Code einen Typ für
+den Stich, auf englisch "Trick".  Dieser muss mitführen, wer welche
+Karte ausgespielt hat, um nach einer Runde zu entscheiden, wer den
+Stich einziehen muss:
 
+``` haskell
+type PlayerName = String
+
+type Trick = [(PlayerName, Card)]
+```
+
+Die Typdefinition von `Trick` besagt, dass ein Stich eine Liste (die
+eckigen Klammern) von Zwei-Tupeln (die runden Klammern innendrin) ist.
+Listen werden in funktionalen Sprachen "von hinten nach vorn"
+aufgebaut, die zuletzt ausgespielte Karte ist also vorn.
+
+Wenn der Stich eingezogen wird, zählen nur noch die Karten, nicht
+mehr, von wem sie stammen.  Dafür ist folgende Funktion nützlich:
+
+``` haskell
+cardsOfTrick :: Trick -> [Card]
+cardsOfTrick trick = map snd trick
+```
+
+Was die Funktion macht, ist wieder aus der Typsignatur ersichtlich.
+Interessant ist hier aber auch die Implementierung, weil sie die
+eingebaute *Higher-Order-Funktion* `map` bemüht, deren Typsignatur so
+aussieht:
+
+``` haskell
+map :: [a] -> (a -> b) -> [b]
+```
+
+Das `a` und das `b` sind *Typvariablen*, in Java-Sprech Generics.
+Ausgesprochen steht dort: `map` akzeptiert eine Liste von `a`s sowie
+eine Funktion, die aus einem `a` ein `b` macht und liefert eine Liste
+von `b`s.  Bei `cardsOfTrick` ist `a` das Zwei-Tupel `(PlayerName,
+Card)` und `b` ist `Card`.  Die Funktion `snd` extrahiert aus dem
+Zwei-Tupel die zweite Komponente und deshalb folgenden Typ:
+
+``` haskell
+snd :: (a, b) -> b
+```
+
+Solche generischen Funktionen gibt es (inzwischen) auch in Java, aber
+in funktionalen Sprachen kommen sie viel häufiger zur Anwendung.
+
+Funktionen wie `map` sind ein wichtiger Aspekt funktionaler
+Architektur: Diese macht nicht an der konkreten Modellierung von
+fachlichem Wissen halt, sondern erlaubt den Entwicklerinnen,
+Abstraktionen zu bilden, die das fachliche Wissen verallgemeinern.
+
+Für die Abstraktionsfähigkeit in der funktionalen Sprache ist dies nur
+ein winziges Beispiel.  Sie potenziert aber ihre Fähigkeit im
+Zusammenhang mit den reinen Funktionen: Weil Funktionen nie etwas
+"verstecktes" machen, können sie bedenkenlos zu immer größeren
+Gebilden zusammengestöpselt werden.  In OO-Sprachen wächst mit der
+Größe das Risiko, dass versteckte Effekte unerwünschte
+Wechselwirkungen haben.  Deshalb sind Disziplin und eigene
+architektonische Patterns notwendig, um die resultierende Komplexität
+in den Griff zu bekommen.  In der funktionalen Programmierung ist das
+nicht so, und entsprechend ist das "Programmieren im Großen" dem
+"Programmieren im Kleinen" ziemlich ähnlich.
 
 ### Spiel-Logik
 
-## Zustand modellieren
+## Zustand verwalten
+
 
 ### FIXME: github-Repo
 
