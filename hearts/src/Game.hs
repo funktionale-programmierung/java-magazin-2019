@@ -6,19 +6,21 @@ import qualified Data.Set as S
 import Cards
 import Shuffle
 
-import qualified Data.Map.Strict as M
-import qualified Data.Set as S
-
 import Debug.Trace (trace)
+
+-- start card
+twoOfClubs = Card Clubs (Numeric 2)
 
 -- Games
 type PlayerName = String
+
+-- tricks
 
 -- last card is at the front
 type Trick = [(PlayerName, Card)]
 
 cardsOfTrick :: Trick -> [Card]
-cardsOfTrick trick = map snd trick
+cardsOfTrick = map snd
 
 whoTakesTrick :: Trick -> PlayerName
 whoTakesTrick [] = undefined
@@ -42,15 +44,17 @@ legalCard card hand trick =
          in  suit card == firstSuit -- ok if suit is followed
              || all ((/= firstSuit) . suit) (S.elems hand) -- ok if no such suit in hand
 
+-- Games
+
 type PlayerStacks = M.Map PlayerName [Card]
 type PlayerHands  = M.Map PlayerName Hand
 
 data GameState =
   GameState 
   { statePlayers :: [PlayerName],
-    stateHands :: PlayerHands,
-    stateStacks :: PlayerStacks,
-    stateTrick :: Trick
+    stateHands   :: PlayerHands,
+    stateStacks  :: PlayerStacks,
+    stateTrick   :: Trick
   }
   deriving Show
 
@@ -60,17 +64,7 @@ gameAtBeginning :: GameState -> Bool
 gameAtBeginning gameState =
   (null (stateTrick gameState)) && (all null (M.elems (stateStacks gameState)))
 
--- |rotate assumes length of input > 0
-rotate :: [a] -> [a]
-rotate (x : xs) = xs ++ [x]
-rotate [] = undefined
-
--- |rotateTo assumes target exists in input of length > 0
-rotateTo :: Eq a => a -> [a] -> [a]
-rotateTo y xs@(x : xs') | x == y = xs
-                        | otherwise = rotateTo y (xs' ++ [x])
-rotateTo y [] = undefined
-
+computeNextPlayer :: PlayerName -> [PlayerName] -> PlayerName
 computeNextPlayer currentPlayerName playerNames =
   let next [] = head playerNames
       next (playerName:playerNamesRest) =
@@ -83,8 +77,6 @@ computeNextPlayer currentPlayerName playerNames =
 nextPlayer :: GameState -> PlayerName
 nextPlayer state =
   head (statePlayers state)
-
-twoOfClubs = Card Clubs (Numeric 2)
 
 playValid :: GameState -> PlayerName -> Card -> Bool
 playValid gameState playerName card =
@@ -104,6 +96,7 @@ data GameEvent =
   | PlayerTurn PlayerName
   | CardPlayed PlayerName Card
   | TrickTaken PlayerName Trick
+  | GameOver
   deriving Show
 
 data GameCommand =
@@ -139,7 +132,7 @@ processGameEvent state (TrickTaken player trick) =
           stateTrick = [] }
 
 data PlayerState =
-  PlayerState { playerHand :: Hand,
+  PlayerState { playerHand  :: Hand,
                 playerTrick :: Trick,
                 playerStack :: [Card] }
   deriving Show
@@ -189,6 +182,19 @@ processGameCommand state (PlayCard player card) =
           in (state2, [event1, event2])
   else (state, [])
 
+--------------------------------------------------------------------------------
+-- general utility
+
+-- |rotate assumes length of input > 0
+rotate :: [a] -> [a]
+rotate (x : xs) = xs ++ [x]
+rotate [] = undefined
+
+-- |rotateTo assumes target exists in input of length > 0
+rotateTo :: Eq a => a -> [a] -> [a]
+rotateTo y xs@(x : xs') | x == y = xs
+                        | otherwise = rotateTo y (xs' ++ [x])
+rotateTo y [] = undefined
 
 -- |read number in given range from terminal
 getNumber :: (Num a, Ord a, Read a, Show a) => (a, a) -> IO a

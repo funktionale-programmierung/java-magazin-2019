@@ -108,5 +108,10 @@ instance Pretty Card where
 instance Pretty a => Pretty [a] where
   pretty [] = ""
   pretty [x] = pretty x
-  pretty (x:xs) = pretty x ++ " and " ++ pretty xs
+  pretty (x:xs) = pretty x ++ " and\n" ++ pretty xs
 
+instance (Pretty a, Pretty b) => Pretty (a, b) where
+  pretty (i, x) = pretty i ++ ": " ++ pretty x
+
+instance Pretty Integer where
+  pretty i = show i
