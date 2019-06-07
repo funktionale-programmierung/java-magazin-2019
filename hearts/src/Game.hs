@@ -18,7 +18,7 @@ type PlayerName = String
 type Trick = [(PlayerName, Card)]
 
 cardsOfTrick :: Trick -> [Card]
-cardsOfTrick = map snd
+cardsOfTrick trick = map snd trick
 
 whoTakesTrick :: Trick -> PlayerName
 whoTakesTrick [] = undefined
