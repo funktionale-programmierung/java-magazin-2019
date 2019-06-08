@@ -95,7 +95,10 @@ nextPlayer state =
 playValid :: GameState -> PlayerName -> Card -> Bool
 playValid gameState playerName card =
   -- FIXME: validate that the card is valid for the trick
-  card `elem` (stateHands gameState M.! playerName) &&
+  let hand = stateHands gameState M.! playerName
+      trick = stateTrick gameState
+  in
+  legalCard card hand trick &&
   if gameAtBeginning gameState
   then card == twoOfClubs
   else nextPlayer gameState == playerName
@@ -111,6 +114,7 @@ data GameEvent =
   | PlayerTurn PlayerName
   | CardPlayed PlayerName Card
   | TrickTaken PlayerName Trick
+  | IllegalMove PlayerName
   | GameOver
   deriving Show
 

@@ -96,6 +96,8 @@ announceEvent (CardPlayed playerName card) =
   liftIO $ putStrLn (playerName ++ " plays " ++ pretty card)
 announceEvent (TrickTaken playerName trick) =
   liftIO $ putStrLn (playerName ++ " takes the trick:\n" ++ pretty (cardsOfTrick trick))
+announceEvent (IllegalMove playerName) =
+  liftIO $ putStrLn (playerName ++ " tried to play an illegal card")
 announceEvent (GameOver) = do
   liftIO $ putStrLn "Game Over"
   gameState <- State.get
@@ -154,7 +156,7 @@ processGameCommand command =
               processAndPublishEvent (PlayerTurn nextPlayer)
         else do
           nextPlayer <- nextPlayerM
-          -- processAndPublishEvent (IllegalMove nextPlayer)
+          processAndPublishEvent (IllegalMove nextPlayer)
           processAndPublishEvent (PlayerTurn nextPlayer)
 
 processAndPublishEvent :: GameConstraints m => GameEvent -> m ()
@@ -182,6 +184,9 @@ processGameEvent (TrickTaken playerName trick) =
   State.modify (\state -> state { stateStacks = (addToStack (stateStacks state) playerName (cardsOfTrick trick)),
                                   stateTrick = emptyTrick
                                 })
+
+processGameEvent (IllegalMove playerName) =
+  return ()
 
 processGameEvent (GameOver) =
   return ()
@@ -216,6 +221,9 @@ playerProcessGameEvent playerName gameEvent = do
         modifyStack (cardsOfTrick trick ++)
       modifyTrick (const emptyTrick)
 
+    IllegalMove playerName ->
+      return ()
+
     GameOver ->
       return ()
   -- st <- State.get
@@ -247,6 +255,9 @@ strategyPlayer playerName strategy@(PlayerStrategy chooseCard) playerState =
           return ()
 
         TrickTaken _ _ ->
+          return ()
+
+        IllegalMove _ ->
           return ()
 
         GameOver ->
