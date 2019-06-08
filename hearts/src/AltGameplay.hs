@@ -18,7 +18,7 @@ import qualified Data.Set as S
 import Debug.Trace (trace, traceShowId, traceIO, traceM)
 
 import Cards
-import Game hiding (processGameCommand, processGameEvent)
+import Game hiding (processGameCommand, processGameEvent, playerProcessGameEvent)
 import qualified Shuffle
 
 -- different
@@ -138,20 +138,24 @@ processGameCommand command =
       processAndPublishEvent (HandsDealt playerHands)
     PlayCard playerName card -> do
       playIsValid <- playValidM playerName card
-      when playIsValid $ do
-        processAndPublishEvent (CardPlayed playerName card)
-        turnIsOver <- turnOverM
-        if turnIsOver then do
-            trick <- currentTrickM
-            let trickTaker = whoTakesTrick trick
-            processAndPublishEvent (TrickTaken trickTaker trick)
-            gameIsOver <- gameOverM
-            if gameIsOver 
-              then processAndPublishEvent (GameOver)
-              else processAndPublishEvent (PlayerTurn trickTaker)
-          else do
-            nextPlayer <- nextPlayerM
-            processAndPublishEvent (PlayerTurn nextPlayer)
+      if playIsValid then do
+          processAndPublishEvent (CardPlayed playerName card)
+          turnIsOver <- turnOverM
+          if turnIsOver then do
+              trick <- currentTrickM
+              let trickTaker = whoTakesTrick trick
+              processAndPublishEvent (TrickTaken trickTaker trick)
+              gameIsOver <- gameOverM
+              if gameIsOver 
+                then processAndPublishEvent (GameOver)
+                else processAndPublishEvent (PlayerTurn trickTaker)
+            else do
+              nextPlayer <- nextPlayerM
+              processAndPublishEvent (PlayerTurn nextPlayer)
+        else do
+          nextPlayer <- nextPlayerM
+          -- processAndPublishEvent (IllegalMove nextPlayer)
+          processAndPublishEvent (PlayerTurn nextPlayer)
 
 processAndPublishEvent :: GameConstraints m => GameEvent -> m ()
 processAndPublishEvent gameEvent = do
@@ -166,9 +170,9 @@ processGameEvent (HandsDealt playerHands) =
 processGameEvent (CardPlayed playerName card) =
   State.modify (\state ->
                    state { statePlayers = rotate (rotateTo playerName (statePlayers state)),
-                           stateHands = takeCard (stateHands state) playerName card,
-                           stateStacks = stateStacks state,
-                           stateTrick = (playerName, card) : (stateTrick state)
+                           stateHands   = takeCard (stateHands state) playerName card,
+                           stateStacks  = stateStacks state,
+                           stateTrick   = addToTrick playerName card (stateTrick state)
                          })
 
 processGameEvent (PlayerTurn playerName) = 
@@ -176,7 +180,7 @@ processGameEvent (PlayerTurn playerName) =
 
 processGameEvent (TrickTaken playerName trick) =
   State.modify (\state -> state { stateStacks = (addToStack (stateStacks state) playerName (cardsOfTrick trick)),
-                                  stateTrick = []
+                                  stateTrick = emptyTrick
                                 })
 
 processGameEvent (GameOver) =
@@ -191,12 +195,12 @@ modifyHand  f = State.modify (\playerState -> playerState { playerHand = f (play
 modifyTrick f = State.modify (\playerState -> playerState { playerTrick = f (playerTrick playerState)})
 modifyStack f = State.modify (\playerState -> playerState { playerStack = f (playerStack playerState)})
 
-processPlayerEvent :: (HasPlayerState m, PlayerConstraints m) => PlayerName -> GameEvent -> m ()
-processPlayerEvent playerName gameEvent = do
+playerProcessGameEvent :: (HasPlayerState m, PlayerConstraints m) => PlayerName -> GameEvent -> m ()
+playerProcessGameEvent playerName gameEvent = do
   case gameEvent of
     HandsDealt hands ->
       State.put (PlayerState { playerHand = hands M.! playerName,
-                               playerTrick = [],
+                               playerTrick = emptyTrick,
                                playerStack = [] })
 
     PlayerTurn turnPlayerName ->
@@ -205,17 +209,17 @@ processPlayerEvent playerName gameEvent = do
     CardPlayed cardPlayerName card -> do
       when (playerName == cardPlayerName) $
         modifyHand (removeCard card)
-      modifyTrick ((cardPlayerName, card) :)
+      modifyTrick (addToTrick cardPlayerName card)
 
     TrickTaken trickPlayerName trick -> do
       when (playerName == trickPlayerName) $
         modifyStack (cardsOfTrick trick ++)
-      modifyTrick (const [])
+      modifyTrick (const emptyTrick)
 
     GameOver ->
       return ()
   -- st <- State.get
-  -- traceM ("** AFTER PROCESSPLAYEREVENT " ++ playerName ++ " " ++ show gameEvent ++ ": " ++ show st)
+  -- traceM ("** AFTER PLAYERPROCESSGAMEEVENT " ++ playerName ++ " " ++ show gameEvent ++ ": " ++ show st)
 
 makePlayerPackage :: PlayerName -> PlayerStrategy -> PlayerPackage
 makePlayerPackage playerName strategy =
@@ -225,7 +229,7 @@ strategyPlayer :: PlayerName -> PlayerStrategy -> PlayerState -> PlayerCommandPr
 strategyPlayer playerName strategy@(PlayerStrategy chooseCard) playerState =
   PlayerCommandProcessor $ \ event -> do
     (_, nextPlayerState) <- flip State.runStateT playerState $ do
-      processPlayerEvent playerName event
+      playerProcessGameEvent playerName event
       playerState <- State.get
       -- traceM ("** PLAYER " ++ playerName ++ ": " ++ show playerState)
       case event of
@@ -258,13 +262,13 @@ playAlongStrategy =
   playerState <- State.get
   let trick = playerTrick playerState
       hand = playerHand playerState
-      (_, firstCard) = last trick
+      firstCard = leadingCardOfTrick trick
       firstSuit = suit firstCard
       followingCardsOnHand = S.filter ((== firstSuit) . suit) hand
-  case trick of
-    [] ->
+  if trickEmpty trick 
+    then
       return (S.findMin hand)
-    _ ->
+    else
       case S.lookupMin followingCardsOnHand of
         Nothing ->
           return (S.findMax hand) -- any card is fine, so try to get rid of high hearts
@@ -278,10 +282,10 @@ playInteractive =
   playerState <- State.get
   let trick = playerTrick playerState
       hand = playerHand playerState
-  case trick of
-    [] ->
+  if trickEmpty trick
+    then
       liftIO $ putStrLn "You lead the next trick!"
-    _ ->
+    else
       liftIO $ putStrLn ("Cards on table: " ++ show (reverse trick))
   let myhand = S.elems hand
       ncards = S.size hand
