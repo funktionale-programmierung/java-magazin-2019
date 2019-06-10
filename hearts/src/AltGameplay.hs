@@ -18,7 +18,7 @@ import qualified Data.Set as S
 import Debug.Trace (trace, traceShowId, traceIO, traceM)
 
 import Cards
-import Game hiding (processGameCommand, processGameEvent, playerProcessGameEvent)
+import Game hiding (processGameCommandM, processGameEvent, playerProcessGameEvent)
 import qualified Shuffle
 
 -- different
@@ -121,7 +121,7 @@ announceEvent gameEvent =
 gameController :: ControllerConstraints m => [PlayerPackage] -> [GameCommand] -> m ()
 gameController players commands = do
   -- traceM ("** INCOMING COMMANDS " ++ show commands) 
-  (_, events) <- Writer.runWriterT $ mapM_ processGameCommand commands
+  (_, events) <- Writer.runWriterT $ mapM_ processGameCommandM commands
   mapM_ announceEvent events
   -- st <- State.get
   -- traceM ("** GAMESTATE: " ++ show st)
@@ -133,13 +133,19 @@ gameController players commands = do
   unless (null commands') $
     gameController players' commands'
 
-processGameCommand :: GameConstraints m => GameCommand -> m ()
-processGameCommand command =
-  case command of
-    DealHands playerHands ->
+processGameCommandM :: GameConstraints m => GameCommand -> m ()
+processGameCommandM command =
+  do gameState <- State.get
+     let (gameState', events) = processGameCommand gameState command
+     State.put gameState'
+     Writer.tell events
+
+-- directly monadic version
+processGameCommandM' :: GameConstraints m => GameCommand -> m ()
+processGameCommandM' (DealHands playerHands) =
       processAndPublishEvent (HandsDealt playerHands)
-    PlayCard playerName card -> do
-      playIsValid <- playValidM playerName card
+processGameCommandM' (PlayCard playerName card) =
+   do playIsValid <- playValidM playerName card
       if playIsValid then do
           processAndPublishEvent (CardPlayed playerName card)
           turnIsOver <- turnOverM
@@ -164,7 +170,7 @@ processAndPublishEvent gameEvent = do
   processGameEvent gameEvent
   Writer.tell [gameEvent]
 
-processGameEvent :: GameConstraints m => GameEvent -> m ()
+processGameEvent :: MonadState GameState monad => GameEvent -> monad ()
 processGameEvent (HandsDealt playerHands) =
   State.modify (\state -> state { stateHands = playerHands })
   -- no good to broadcast this event as everybody knows everybody else's hand

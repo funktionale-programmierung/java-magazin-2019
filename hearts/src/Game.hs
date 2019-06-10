@@ -192,7 +192,9 @@ processGameCommand state (PlayCard player card) =
               trickTaker = whoTakesTrick trick
               event2 = TrickTaken trickTaker trick
               state2 = processGameEvent state event2
-              event3 = PlayerTurn trickTaker
+              event3 = if gameOver state
+                       then GameOver
+                       else PlayerTurn trickTaker
               state3 = processGameEvent state event3
           in (state3, [event1, event2, event3])
         else
