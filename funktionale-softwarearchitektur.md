@@ -72,17 +72,52 @@ gleiche Farbe wie die Eröffnungskarte hat sowie den höchsten Wert.
 Ziel ist, mit den eingezogenen Karten einen möglichst geringen
 Punktestand zu erreichen.
 
-FIXME
+![Abbildung 1: Modellierung des Spielablaufs](gameplay.pdf)
 
-Architekturüberblick, Events, Commands
+Wir implementieren das Kartenspiel auf der Basis von *domain events*.
+Abbildung 1 zeigt den Ablauf: Jede Spielerin nimmt Events entgegen,
+die den bisherigen Spielverlauf repräsentieren, und generiert dafür
+Commands, die Spielzüge repräsentieren.  Die "Gameplay"-Komponente
+nimmt die Commands entgegen, überprüft sie auf Korrektheit (War die
+Spielerin überhauptd ran? War der Spielzug regelkonform?) und
+generiert ihrerseits daraus wieder Events.
+
+Diese Architektur ist ein klassisches taktisches Pattern aus dem
+*Domain-Driven Design*[^5].  Während das Pattern das gleiche ist wie
+in "objektorientiertem DDD", unterscheidet sich die Umsetzung gerade
+in der Verwendung von unverändlichen Daten und Funktionen. (In der
+funktionalen Programmierung stehen auch andere leistungsfähige
+Patterns zur Verfügung wie fs2/conduit FIXME, deren Erläuterung aber mehr
+Vorlauf erfordern würde, als hier Platz zur Verfügung steht.)
+
+Wir stellen die Kommunikation zwischen den einzelnen Komponenten der
+Architektur direkt mit Funktionsaufrufen her, aber andere
+Mechanismen - nebenläufige Prozesse oder Mikroservices - sind
+natürlich auch möglich.
 
 ## Programmieren mit unveränderlichen Daten
 
-FIXME Einleitung
+Eine Vorbemerkung: "Unverändlicher Daten" bedeutet, dass Objekte nicht
+verändert werden - es gibt keine Zuweisungen, die Attribute von
+Objekten verändern können.  Wenn Veränderung modelliert werden soll,
+so generiert ein funktionales Programm in der Regel neue Objekte.  Das
+mag erstmal als reine Einschränkung erscheinen, bietet aber enorme
+Vorteile:
+
+* Es gibt niemals Probleme mit interferierenden Veränderungen des
+  Zustands durch die Aufrufe von Methoden oder nebenläufige Prozesse.
+  
+* Es gibt keine inkosistenten, "Zwischenzustände" dadurch, dass das
+  Programm erst das eine Feld, dann das nächste etc. setzt
+  
+* Das Programm kann problemlos durch ein Gedächtnis erweitert werden,
+  das zum Beispiel zum vorigen Spielständen zurückkehrt, wenn eine
+  Spielerin ihren Zug zurücknimmt.
 
 ## Kartenspiel modellieren
 
-Wir fangen mit der Modellierung der Karten an.  Die folgende
+Jetzt geht es aber mit der konkreten Modellierung los.  Wir fangen den
+Spielkarten an.  Die folgende
 Definition eines Datentyps legt fest, dass ein Karte eine Farbe
 ("suit") und und Wert ("rank") hat:
 
@@ -366,12 +401,77 @@ Spieler* vorgehalten werden, darum sind die dazugehörigen Typen
 Syonyme für Maps:
 
 ```haskell
-type PlayerStacks = Map PlayerName [Card]
+type PlayerStacks = Map PlayerName (Set Card)
 type PlayerHands  = Map PlayerName Hand
 ```
 
+Auch bei der Umsetzung der Spielregeln macht sich die funktionale
+Architektur bemerkbar:  Während des Spiels wird der Zustand nicht
+verändert, sondern es wird für jede Änderung ein neuer Zustand
+erzeugt.  Die zentrale Funktion für die Verarbeitung eines Commands
+hat deswegen folgende Signatur:
 
+```haskell
+processGameCommand :: GameState -> GameCommand -> (GameState, [GameEvent])
+```
 
+Mit anderen Worten (Repräsentation des) Zustand vorher rein, Command
+rein, Tupel aus (Repräsentation des) neuem Zustand und Liste
+resultierender Events raus.  Hier ist die Implementierung der
+Gleichung für das `DealHands`-Command:
+  
+```haskell
+processGameCommand state (DealHands hands) =
+  let event = HandsDealt hands
+  in (processGameEvent state event, [event])
+```
+
+Da dieser Befehl von der "Spielleitung" kommt, führt er immer zu einem
+`HandsDealt`-Event.  Der Effekt des Events auf den Zustand wird durch
+die Funktion `processGameEvent` berechnet, deren Definition aus
+Platzgründen fehlt, deren Arbeitsweise sich wieder gut an der
+Typsignatur ablesen lässt:
+
+```haskell
+processGameEvent :: GameState -> GameEvent -> GameState
+```
+
+Die Kernlogik ist in der Gleichung für den `PlayCard`-Command. Diese
+verlässt sich auf Hilfsfunktionen `playValid` (die einen Spielzug auf
+Korrektheit überprüft), `whoTakesTrick` (die berechnet, wer den Stich
+einziehen muss) und `gameOver` (die feststellt, ob das Spiel vorbei
+ist).  Der Code führt eine Reihe von Fallunterscheidungen in Form von
+`if ... then ... else` durch und bindet lokale Variablen (insbesondere
+Events `event1`, `event2` etc. und Zwischenzustände `state1`, `state2`
+mit `let`:
+
+```haskell
+processGameCommand state (PlayCard player card) =
+  if playValid state player card
+  then
+    let event1 = CardPlayed player card
+        state1 = processGameEvent state event1
+    in  if turnOver state1 then
+          let trick = gameStateTrick state1
+              trickTaker = whoTakesTrick trick
+              event2 = TrickTaken trickTaker trick
+              state2 = processGameEvent state event2
+              event3 = if gameOver state
+                       then GameOver
+                       else PlayerTurn trickTaker
+              state3 = processGameEvent state event3
+          in (state3, [event1, event2, event3])
+        else
+          let event2 = PlayerTurn (nextPlayer state1)
+              state2 = processGameEvent state event2
+          in (state2, [event1, event2])
+  else
+    (state, [IllegalMove player, PlayerTurn player])
+```
+
+Deutlich zu sehen ist, dass niemals der Zustand verändert wird und
+stattdessen die Zwischenzustände alles separate, voneinander
+unabhängige Objekte sind.
 
 ## Zustand verwalten
 
@@ -398,3 +498,5 @@ FIXME
 [^3]: Graham Hutton: 
 
 [^4]: Hearts auf Wikipedia
+
+[^5]: Vaughn, Vernon: Domain-Driven Design Distilled, Pearson, 2016.
