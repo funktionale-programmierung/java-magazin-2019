@@ -483,6 +483,21 @@ unabhängige Objekte sind.
 
 ## Zustand verwalten
 
+Die Funktion `processCommand` bildet die Abfolge von Zuständen durch
+unterschiedliche Variablen und die Abhängigkeiten dazwischen ab.  Das
+ist in vielen Situationen gerade richtig, hier aber unnötig
+fehleranfällig - wenn zum Beispiel irgendwo statt `state3` mal
+`state2` steht.  Unnötig ist es deshalb, weil die Funktion einen
+sequenziellen Prozess abbildet, und dem wäre besser durch eine
+sequenzielle Notation gedient.
+
+Sequenzieller Prozesse lassen sich gut durch *Monaden* beschreiben,
+ein typisch funktionales Architekturpattern.  Mit Monaden entstehen
+immer noch Funktionen, aber die Notation wechselt in eine sequenzielle
+Form, in der *Effekte* passieren dürfen.
+
+FIXME
+
 ## Fazit
 
 Funktionale Softwarearchitektur bedeutet erst einmal, dass man sich
