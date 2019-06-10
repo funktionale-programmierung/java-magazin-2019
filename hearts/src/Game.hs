@@ -1,8 +1,9 @@
 {-# LANGUAGE TupleSections #-}
 module Game where
 
-import qualified Data.Map.Strict as M
-import qualified Data.Set as S
+import qualified Data.Map.Strict as Map
+import qualified Data.Set as Set
+import Data.Map.Strict (Map, (!))
 import Cards
 
 import Debug.Trace (trace)
@@ -56,12 +57,12 @@ legalCard card hand trick =
     _ -> let (_, firstCard) = last trick
              firstSuit = suit firstCard
          in  suit card == firstSuit -- ok if suit is followed
-             || all ((/= firstSuit) . suit) (S.elems hand) -- ok if no such suit in hand
+             || all ((/= firstSuit) . suit) (Set.elems hand) -- ok if no such suit in hand
 
 -- * Games
 
-type PlayerStacks = M.Map PlayerName [Card]
-type PlayerHands  = M.Map PlayerName Hand
+type PlayerStacks = Map PlayerName [Card]
+type PlayerHands  = Map PlayerName Hand
 
 data GameState =
   GameState 
@@ -72,11 +73,11 @@ data GameState =
   }
   deriving Show
 
-emptyGameState = GameState [] M.empty M.empty []
+emptyGameState = GameState [] Map.empty Map.empty []
 
 gameAtBeginning :: GameState -> Bool
 gameAtBeginning gameState =
-  (trickEmpty (stateTrick gameState)) && (all null (M.elems (stateStacks gameState)))
+  (trickEmpty (stateTrick gameState)) && (all null (Map.elems (stateStacks gameState)))
 
 computeNextPlayer :: PlayerName -> [PlayerName] -> PlayerName
 computeNextPlayer currentPlayerName playerNames =
@@ -95,7 +96,7 @@ nextPlayer state =
 playValid :: GameState -> PlayerName -> Card -> Bool
 playValid gameState playerName card =
   -- FIXME: validate that the card is valid for the trick
-  let hand = stateHands gameState M.! playerName
+  let hand = stateHands gameState ! playerName
       trick = stateTrick gameState
   in
   legalCard card hand trick &&
@@ -104,13 +105,13 @@ playValid gameState playerName card =
   else nextPlayer gameState == playerName
 
 gameOver :: GameState -> Bool
-gameOver state = all isHandEmpty $ M.elems $ stateHands state
+gameOver state = all isHandEmpty $ Map.elems $ stateHands state
 
 turnOver :: GameState -> Bool
-turnOver state = M.size (stateHands state) == trickSize (stateTrick state)
+turnOver state = Map.size (stateHands state) == trickSize (stateTrick state)
 
 data GameEvent =
-    HandsDealt (M.Map PlayerName Hand)
+    HandsDealt (Map PlayerName Hand)
   | PlayerTurn PlayerName
   | CardPlayed PlayerName Card
   | TrickTaken PlayerName Trick
@@ -119,24 +120,24 @@ data GameEvent =
   deriving Show
 
 data GameCommand =
-    DealHands (M.Map PlayerName Hand)
+    DealHands (Map PlayerName Hand)
   | PlayCard PlayerName Card
   deriving Show
 
 takeCard :: PlayerHands -> PlayerName -> Card -> PlayerHands
 takeCard playerHand player card =
-  M.alter (fmap (removeCard card)) player playerHand
+  Map.alter (fmap (removeCard card)) player playerHand
 
 addToStack :: PlayerStacks -> PlayerName -> [Card] -> PlayerStacks
 addToStack playerStack player cards =
-  M.alter (fmap (cards++)) player playerStack
+  Map.alter (fmap (cards++)) player playerStack
 
 processGameEvent :: GameState -> GameEvent -> GameState
 processGameEvent state event | trace ("processGameEvent " ++ show state ++ " " ++ show event) False = undefined
 processGameEvent state (HandsDealt hands) =
-  GameState { statePlayers = M.keys hands,
+  GameState { statePlayers = Map.keys hands,
               stateHands = hands,
-              stateStacks = M.fromList (map (, []) (M.keys hands)),
+              stateStacks = Map.fromList (map (, []) (Map.keys hands)),
               stateTrick = emptyTrick }
 processGameEvent state (PlayerTurn player) =
   state { statePlayers = rotateTo player (statePlayers state) }
@@ -160,7 +161,7 @@ emptyPlayerState = PlayerState emptyHand [] []
 
 playerProcessGameEvent :: PlayerName -> PlayerState -> GameEvent -> PlayerState
 playerProcessGameEvent playerName state (HandsDealt hands) =
-  PlayerState { playerHand = hands M.! playerName,
+  PlayerState { playerHand = hands ! playerName,
                 playerTrick = emptyTrick,
                 playerStack = [] }
 playerProcessGameEvent playerName state (PlayerTurn playerName') = state
