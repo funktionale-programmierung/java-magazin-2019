@@ -186,7 +186,7 @@ processGameCommand state (DealHands hands) =
   let event = HandsDealt hands
   in (processGameEvent state event, [event])
 processGameCommand state (PlayCard player card) =
-  if trace (show "processGameCommand valid " ++ show player ++ " " ++ show card ++ " " ++ show (playValid state player card)) (playValid state player card)
+  if playValid state player card
   then   
     let event1 = CardPlayed player card
         state1 = processGameEvent state event1
