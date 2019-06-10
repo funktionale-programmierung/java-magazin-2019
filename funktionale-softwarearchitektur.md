@@ -112,13 +112,16 @@ Vorteile:
 * Es gibt niemals Probleme mit interferierenden Veränderungen des
   Zustands durch die Aufrufe von Methoden oder nebenläufige Prozesse.
   
-* Es gibt keine inkosistenten, "Zwischenzustände" dadurch, dass das
+* Es gibt keine inkonsistenten, "Zwischenzustände" dadurch, dass das
   Programm erst das eine Feld, dann das nächste etc. setzt
-  
+
 * Das Programm kann problemlos durch ein Gedächtnis erweitert werden,
   das zum Beispiel zum vorigen Spielständen zurückkehrt, wenn eine
   Spielerin ihren Zug zurücknimmt.
 
+* Es gibt keine verstecken Abhängigkeiten durch die Kommunikation von
+  Zustand hinter den Kulissen.
+  
 ## Kartenspiel modellieren
 
 Jetzt geht es aber mit der konkreten Modellierung los.  Wir fangen den
@@ -482,7 +485,17 @@ unabhängige Objekte sind.
 
 ## Fazit
 
-FIXME
+Funktionale Softwarearchitektur bedeutet erst einmal, dass man sich
+als Entwickler nicht so leicht verstecken kann: Nicht mal so eben
+schnell ein Attribut verändern oder - speziell in Haskell - externe
+Effekte auslösen, weil es gerade so passt.  Stattdessen führen neue
+Zustände immer gleich zu neuen Objekten und alle Effekte müssen
+explizit deklariert werden.  Das ist für Entwicklerinnen mit
+OO-Hintergrund erst einmal gewöhnungsbedürftig.  Diese Einschränkungen
+bringen aber Verbesserungen der Architekturqualität mit sich: Die
+Kopplung sinkt, die Abhänigkeiten werden weniger, deklarierte
+Effekte sind kontrollierte Effekte - das alles steiger Robustheit,
+Flexibilität und Wohlbefinden.
 
 ## Quellen
 
