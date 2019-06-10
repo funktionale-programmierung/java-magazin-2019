@@ -28,6 +28,7 @@ import Data.Sequence (Seq, (><))
 import qualified Data.Map.Strict as Map
 import Data.Map.Strict (Map)
 import qualified Data.Set as Set
+import Data.Set (Set)
 
 import Data.Foldable
 
@@ -76,7 +77,7 @@ playerHandM eventSourcing player =
   do state <- eventSourcingReadStateM eventSourcing
      return (gameStateHands state Map.! player)
 
-playerStackM :: Monad monad => GameEventSourcing monad -> PlayerName -> monad [Card]
+playerStackM :: Monad monad => GameEventSourcing monad -> PlayerName -> monad (Set Card)
 playerStackM ges player =
   do state <- eventSourcingReadStateM ges
      return (gameStateStacks state Map.! player)

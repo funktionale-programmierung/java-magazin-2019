@@ -39,6 +39,7 @@ import RWT
 import qualified Data.Map.Strict as Map
 import Data.Map.Strict (Map)
 import qualified Data.Set as Set
+import Data.Set (Set)
 
 import Debug.Trace (trace)
 
@@ -137,7 +138,7 @@ playerHandM playerName =
   do state <- eventSourcingReadStateM
      return (gameStateHands state Map.! playerName)
 
-playerStackM :: Monad monad => PlayerName -> GameEventSourcingT monad [Card]
+playerStackM :: Monad monad => PlayerName -> GameEventSourcingT monad (Set Card)
 playerStackM player =
   do state <- eventSourcingReadStateM
      return (gameStateStacks state Map.! player)

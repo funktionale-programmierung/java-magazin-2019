@@ -1,6 +1,9 @@
 {-# LANGUAGE TupleSections #-}
 module Game where
 
+import qualified Data.Set as Set
+import Data.Set (Set)
+
 import qualified Data.Map.Strict as Map
 import Data.Map.Strict (Map, (!))
 import Cards
@@ -60,7 +63,7 @@ legalCard card hand trick =
 
 -- * Games
 
-type PlayerStacks = Map PlayerName [Card]
+type PlayerStacks = Map PlayerName (Set Card)
 type PlayerHands  = Map PlayerName Hand
 
 data GameState =
@@ -129,14 +132,14 @@ takeCard playerHand player card =
 
 addToStack :: PlayerStacks -> PlayerName -> [Card] -> PlayerStacks
 addToStack playerStack player cards =
-  Map.alter (fmap (cards++)) player playerStack
+  Map.alter (fmap (Set.union (Set.fromList cards))) player playerStack
 
 processGameEvent :: GameState -> GameEvent -> GameState
 processGameEvent state event | trace ("processGameEvent " ++ show state ++ " " ++ show event) False = undefined
 processGameEvent state (HandsDealt hands) =
   GameState { gameStatePlayers = Map.keys hands,
               gameStateHands = hands,
-              gameStateStacks = Map.fromList (map (, []) (Map.keys hands)),
+              gameStateStacks = Map.fromList (map (, Set.empty) (Map.keys hands)),
               gameStateTrick = emptyTrick }
 processGameEvent state (PlayerTurn player) =
   state { gameStatePlayers = rotateTo player (gameStatePlayers state) }

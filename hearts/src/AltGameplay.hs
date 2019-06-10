@@ -57,7 +57,7 @@ startController players = do
   -- setup game state
   let playerNames = map playerName players
   State.modify (\state -> state { gameStatePlayers = playerNames,
-                                  gameStateStacks  = Map.fromList (zip playerNames $ repeat [])
+                                  gameStateStacks  = Map.fromList (zip playerNames $ repeat Set.empty)
                                 })
   shuffledCards <- liftIO $ Shuffle.shuffleRounds 10 Cards.deck
   let hands = Map.fromList (zip playerNames (map Set.fromList (Shuffle.distribute (length playerNames) shuffledCards)))
