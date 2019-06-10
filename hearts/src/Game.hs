@@ -52,7 +52,7 @@ whoTakesTrick trick =
 
 -- |is it legal to play card given the hand and the partial trick on the table?
 legalCard :: Card -> Hand -> Trick -> Bool
-legalCard card hand trick = 
+legalCard card hand trick =
   containsCard card hand &&
   case trick of
     [] -> True -- if trick is empty, then any card on hand is fine
@@ -67,7 +67,7 @@ type PlayerStacks = Map PlayerName (Set Card)
 type PlayerHands  = Map PlayerName Hand
 
 data GameState =
-  GameState 
+  GameState
   { gameStatePlayers :: [PlayerName],
     gameStateHands   :: PlayerHands,
     gameStateStacks  :: PlayerStacks,
@@ -89,7 +89,7 @@ computeNextPlayer currentPlayerName playerNames =
         then head playerNamesRest
         else next playerNamesRest
   in next playerNames
-  
+
 -- determine whose turn it is (assumes at least one player)
 nextPlayer :: GameState -> PlayerName
 nextPlayer state =
@@ -171,14 +171,14 @@ playerProcessGameEvent playerName state (CardPlayed player card)
   | player == playerName =
     state { playerHand = removeCard card (playerHand state),
             playerTrick = addToTrick player card (playerTrick state) }
-  | otherwise = 
+  | otherwise =
     state { playerTrick = addToTrick player card (playerTrick state) }
 playerProcessGameEvent playerName state (TrickTaken player trick)
   | player == playerName =
     state { playerTrick = emptyTrick,
             playerStack = (cardsOfTrick trick) ++ (playerStack state) }
   | otherwise =
-    state { playerTrick = emptyTrick } 
+    state { playerTrick = emptyTrick }
 
 processGameCommand :: GameState -> GameCommand -> (GameState, [GameEvent])
 processGameCommand state command | trace ("processGameCommand " ++ show (gameAtBeginning state) ++ " " ++ show command ++ " " ++ show state) False = undefined
@@ -187,7 +187,7 @@ processGameCommand state (DealHands hands) =
   in (processGameEvent state event, [event])
 processGameCommand state (PlayCard player card) =
   if playValid state player card
-  then   
+  then
     let event1 = CardPlayed player card
         state1 = processGameEvent state event1
     in  if turnOver state1 then
