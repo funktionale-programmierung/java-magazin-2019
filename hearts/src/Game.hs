@@ -2,7 +2,6 @@
 module Game where
 
 import qualified Data.Map.Strict as Map
-import qualified Data.Set as Set
 import Data.Map.Strict (Map, (!))
 import Cards
 
@@ -57,7 +56,7 @@ legalCard card hand trick =
     _ -> let (_, firstCard) = last trick
              firstSuit = suit firstCard
          in  suit card == firstSuit -- ok if suit is followed
-             || all ((/= firstSuit) . suit) (Set.elems hand) -- ok if no such suit in hand
+             || all ((/= firstSuit) . suit) hand -- ok if no such suit in hand
 
 -- * Games
 
