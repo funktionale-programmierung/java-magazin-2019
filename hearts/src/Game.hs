@@ -199,7 +199,8 @@ processGameCommand state (PlayCard player card) =
           let event2 = PlayerTurn (nextPlayer state1)
               state2 = processGameEvent state event2
           in (state2, [event1, event2])
-  else (state, [])
+  else
+    (state, [IllegalMove player, PlayerTurn player])
 
 --------------------------------------------------------------------------------
 -- general utility
