@@ -80,13 +80,13 @@ Architekturüberblick, Events, Commands
 
 FIXME Einleitung
 
-### Kartenspiel modellieren
+## Kartenspiel modellieren
 
 Wir fangen mit der Modellierung der Karten an.  Die folgende
 Definition eines Datentyps legt fest, dass ein Karte eine Farbe
 ("suit") und und Wert ("rank") hat:
 
-``` haskell
+```haskell
 data Card = Card { suit :: Suit, rank :: Rank }
   deriving (Show, Eq, Ord)
 ```
@@ -100,7 +100,7 @@ vergleichen (`Ord` - analog zu `compareTo`).
 Für die Definition werden noch Definitionen von `Suit` und `Rank`
 benötigt:
 
-``` haskell
+```haskell
 data Suit = Diamonds | Clubs | Spades | Hearts
   deriving (Show, Eq, Ord)
   
@@ -119,7 +119,7 @@ Spielkarten korrekt abbildet.
 Hier ist die Definition der Kreuz Zwei auf Basis dieser
 Datentypdefinition in Form einer Gleichung:
 
-``` haskell
+```haskell
 twoOfClubs = Card Clubs (Numeric 2)
 ```
 
@@ -134,7 +134,7 @@ folgende Definitionen generiert, die jeweils eine Liste aller Farben,
 eine Liste aller Werte und schließlich daraus eine Liste aller Karten
 (also aller Kombinationen aus Farben und Werten).
 
-``` haskell
+```haskell
 allSuits :: [Suit]
 allSuits = [Spades, Hearts, Diamonds, Clubs]
 
@@ -162,7 +162,7 @@ Für die Umsetzung von Hearts müssen die Karten repräsentiert werden,
 die eine Spielerin auf der Hand hat - die ist als Menge von Karten
 repräsentiert:
 
-``` haskell
+```haskell
 type Hand = Set Card
 ```
 
@@ -175,7 +175,7 @@ Zunächst die Funktion `isHandEmpty` - der Typ `Hand -> Bool` bedeutet
 "Funktion, die eine Hand als Eingabe nimmt und ein `Bool` als Ausgabe
 liefert:
 
-``` haskell
+```haskell
 isHandEmpty :: Hand -> Bool
 isHandEmpty hand = Set.null hand
 ```
@@ -184,7 +184,7 @@ Die nächste Funktion `containsCard` ist zweistellig und prüft mit
 Hilfe der Library-Funktion `Set.member`, ob eine
 gegebene Karte zu einer Hand gehört:
 
-``` haskell
+```haskell
 containsCard :: Card -> Hand -> Bool
 containsCard card hand = Set.member card hand
 ```
@@ -201,7 +201,7 @@ Die nächste Funktion schließlich zeigt beispielhaft, wie der Umgang
 mit unveränderlichen Daten funktioniert - `removeCard` entfernt eine
 Karte aus einer Hand:
 
-``` haskell
+```haskell
 removeCard :: Card -> Hand -> Hand
 removeCard card hand = Set.delete card hand
 ```
@@ -212,7 +212,7 @@ verändern.  Nicht so in der funktionalen Programmierung, wo
 `removeCard` eine neue Hand liefert und die alte Hand unverändert
 lässt.  Nach:
 
-``` haskell
+```haskell
 hand2 = removeCard card hand1
 ```
 
@@ -232,7 +232,7 @@ den Stich, auf englisch "Trick".  Dieser muss mitführen, wer welche
 Karte ausgespielt hat, um nach einer Runde zu entscheiden, wer den
 Stich einziehen muss:
 
-``` haskell
+```haskell
 type PlayerName = String
 
 type Trick = [(PlayerName, Card)]
@@ -246,7 +246,7 @@ aufgebaut, die zuletzt ausgespielte Karte ist also vorn.
 Wenn der Stich eingezogen wird, zählen nur noch die Karten, nicht
 mehr, von wem sie stammen.  Dafür ist folgende Funktion nützlich:
 
-``` haskell
+```haskell
 cardsOfTrick :: Trick -> [Card]
 cardsOfTrick trick = map snd trick
 ```
@@ -256,7 +256,7 @@ Interessant ist hier aber auch die Implementierung, weil sie die
 eingebaute *Higher-Order-Funktion* `map` bemüht, deren Typsignatur so
 aussieht:
 
-``` haskell
+```haskell
 map :: [a] -> (a -> b) -> [b]
 ```
 
@@ -267,7 +267,7 @@ von `b`s.  Bei `cardsOfTrick` ist `a` das Zwei-Tupel `(PlayerName,
 Card)` und `b` ist `Card`.  Die Funktion `snd` extrahiert aus dem
 Zwei-Tupel die zweite Komponente und deshalb folgenden Typ:
 
-``` haskell
+```haskell
 snd :: (a, b) -> b
 ```
 
@@ -291,9 +291,91 @@ in den Griff zu bekommen.  In der funktionalen Programmierung ist das
 nicht so, und entsprechend ist das "Programmieren im Großen" dem
 "Programmieren im Kleinen" ziemlich ähnlich.
 
-### Spiel-Logik
+## Spiel-Logik
+
+Als nächstes ist der architektonische Mittelbau der Architektur an der
+Reihe, die Spiellogik.  Ein Event-Storming produziert folgende
+Event-Klassen:
+
+* Karten wurden ausgeteilt.
+* Eine neue Spielerin ist an der Reihe.
+* Eine Spielerin hat eine bestimmte Karte aufgenommen.
+* Eine Spielerin hat den Stich aufgenommen.
+* Eine Spielerin hat versucht, eine unzulässige Karte auszuspielen.
+* Das Spiel ist vorbei.
+
+Diese Klassen lassen sich direkt in eine Typdefinition übersetzen:
+
+```haskell
+data GameEvent =
+    HandsDealt (Map PlayerName Hand)
+  | PlayerTurn PlayerName
+  | CardPlayed PlayerName Card
+  | TrickTaken PlayerName Trick
+  | IllegalMove PlayerName
+  | GameOver
+  deriving Show
+```
+
+Der senkrechte Strich `|` zwischen den Klassen bedeutet "oder".  Das
+`HandsDealt`-Event trägt eine "Map" zwischen Spielernamen und ihren
+Karten mit sich.  Ein Verlauf des Spiels kann immer aus dessen Folge
+von Events rekonstruiert werden.
+
+Es gibt nur zwei Klassen von Commands:
+
+```haskell
+data GameCommand =
+    DealHands (Map PlayerName Hand)
+  | PlayCard PlayerName Card
+  deriving Show
+```
+
+Die erste Klasse ist das direkte Pendant zu `HandsDealt`; sie 
+setzt das Spiel zu Beginn in Gang.  Die zweite repräsentiert den
+Versuch einer Spielerin, eine bestimmte Karte auszuspielen.
+
+Die Spielregeln werden durch die Verarbeitung von Commands zu Events
+implementiert.  Die Regeln beziehen sich ständig auf den *Zustand* des
+Spiels: welche Karten zulässig ausgespielt werden können, welche
+Spielerin als nächstes dran ist etc.  Von diesem Zustand wird
+folgendes verlangt:
+
+* Wer sind die Spieler und in welcher Reihenfolge spielen sie?
+* Was hat jede Spielerin auf der Hand?
+* Welche Karten hat jede Spielerin eingezogen?
+* Was liegt auf dem Stich?
+
+Das alles wird durch eine weitere Record-Definition repräsentiert:
+
+```haskell
+data GameState =
+  GameState 
+  { gameStatePlayers :: [PlayerName],
+    gameStateHands   :: PlayerHands,
+    gameStateStacks  :: PlayerStacks,
+    gameStateTrick   :: Trick
+  }
+  deriving Show
+```
+
+Die Liste im Feld `gameStatePlayers` wird dabei immer so umsortiert,
+dass die mächste Spielerin vorn steht.  Für die beiden Felder
+`gameStateHands` und `gameStateStacks` müssen jeweils Karten *pro
+Spieler* vorgehalten werden, darum sind die dazugehörigen Typen
+Syonyme für Maps:
+
+```haskell
+type PlayerStacks = Map PlayerName [Card]
+type PlayerHands  = Map PlayerName Hand
+```
+
+
+
 
 ## Zustand verwalten
+
+
 
 
 ### FIXME: github-Repo
