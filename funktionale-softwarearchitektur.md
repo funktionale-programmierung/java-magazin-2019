@@ -24,7 +24,8 @@ zeichnet sich aus durch folgende Aspekte:
 
 * Statt des Objekts mit gekapseltem Zustand ist die fundamentale
   Einheit funktionaler Architektur die *Funktion*, die auf
-  *unveränderlichen Daten* arbeitet.
+  *unveränderlichen Daten* arbeitet.  Auch sonst werden die *Effekte*
+  eingeschränkt, die Funktionen haben können.
 
 * Die mächtigen Typsysteme funktionaler Sprachen (ob statisch oder
   dynamisch) erlauben ein von den *Typen* aus getriebenes,
@@ -479,6 +480,21 @@ unabhängige Objekte sind.
 
 ## Zustand verwalten
 
+## Fazit
+
+FIXME
+
+## Quellen
+
+[^1]: haskell.org
+
+[^2]: Michael Sperber, Herbert Klaeren: *Schreibe Dein Programm!*, [`https://www.deinprogramm.de`](https://www.deinprogramm.de)
+
+[^3]: Hutton, Graham: *Programming in Haskell*, FIXME
+
+[^4]: Hearts auf Wikipedia, FIXME
+
+[^5]: Vaughn, Vernon: *Domain-Driven Design Distilled*, Pearson, 2016.
 
 ## Michael Sperber
 
@@ -504,14 +520,3 @@ anderen Themen der Softwaretechnik.
 Seine aktuelle Forschung beschäftigt sich mit statischen und
 dynamischen Analysemethoden für JavaScript.
 
-## Literatur
-
-[^1]: haskell.org
-
-[^2]: Schreibe Dein Programm!
-
-[^3]: Graham Hutton: 
-
-[^4]: Hearts auf Wikipedia
-
-[^5]: Vaughn, Vernon: Domain-Driven Design Distilled, Pearson, 2016.
