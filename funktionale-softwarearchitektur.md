@@ -41,6 +41,10 @@ konzentrieren uns in diesem Artikel darum auf den ersten Punkt, also
 den Umgang mit Funktionen und unverändlichen Daten.  Dabei werden wir
 auch die Rolle von Typen beleuchten.
 
+Der Code zu diesem Artikel ist in einem Github-Repositorium abrufbar:
+
+[`https://github.com/funktionale-programmierung/hearts/`](https://github.com/funktionale-programmierung/hearts/)
+
 ## Funktionale Programmiersprachen
 
 Funktionale Softwarearchitektur ist in (fast) jeder Programmiersprache
@@ -476,18 +480,29 @@ unabhängige Objekte sind.
 ## Zustand verwalten
 
 
+## Michael Sperber
 
+[`michael.sperber@active-group.de`](mailto:michael.sperber@active-group.de)
 
-### FIXME: github-Repo
+Michael Sperber ist Geschäftsführer der Active Group GmbH.  Er wendet
+seit über 25 Jahren funktionale Programmierung in Forschung, Lehre und
+industrieller Entwicklung an.  Er ist Mitbegründer des Blogs
+[`funktionale-programmierung.de`](https://funktionale-programmierung.de/)
+und Mitorganisator der jährlichen Entwicklerkonferenz
+[`BOB`](https://bobkonf.de/).
 
-### Michael Sperber
+## Peter Thiemann
 
-FIXME
+[`thiemann@informatik.uni-freiburg.de`](mailto:thiemann@informatik.uni-freiburg.de)
 
-### Peter Thiemann
-
-FIXME
-
+Peter Thiemann ist Professor für Informatik an der
+Universität Freiburg und leitet dort den Arbeitsbereich
+Programmiersprachen.  Er ist einer der führenden
+Experten zur funktionalen Programmierung, der partiellen
+Auswertung, domänenspezifischen Sprachen und zahlreichen
+anderen Themen der Softwaretechnik.
+Seine aktuelle Forschung beschäftigt sich mit statischen und
+dynamischen Analysemethoden für JavaScript.
 
 ## Literatur
 
