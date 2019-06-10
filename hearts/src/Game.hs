@@ -65,10 +65,10 @@ type PlayerHands  = Map PlayerName Hand
 
 data GameState =
   GameState 
-  { statePlayers :: [PlayerName],
-    stateHands   :: PlayerHands,
-    stateStacks  :: PlayerStacks,
-    stateTrick   :: Trick
+  { gameStatePlayers :: [PlayerName],
+    gameStateHands   :: PlayerHands,
+    gameStateStacks  :: PlayerStacks,
+    gameStateTrick   :: Trick
   }
   deriving Show
 
@@ -76,7 +76,7 @@ emptyGameState = GameState [] Map.empty Map.empty []
 
 gameAtBeginning :: GameState -> Bool
 gameAtBeginning gameState =
-  (trickEmpty (stateTrick gameState)) && (all null (Map.elems (stateStacks gameState)))
+  (trickEmpty (gameStateTrick gameState)) && (all null (Map.elems (gameStateStacks gameState)))
 
 computeNextPlayer :: PlayerName -> [PlayerName] -> PlayerName
 computeNextPlayer currentPlayerName playerNames =
@@ -90,13 +90,13 @@ computeNextPlayer currentPlayerName playerNames =
 -- determine whose turn it is (assumes at least one player)
 nextPlayer :: GameState -> PlayerName
 nextPlayer state =
-  head (statePlayers state)
+  head (gameStatePlayers state)
 
 playValid :: GameState -> PlayerName -> Card -> Bool
 playValid gameState playerName card =
   -- FIXME: validate that the card is valid for the trick
-  let hand = stateHands gameState ! playerName
-      trick = stateTrick gameState
+  let hand = gameStateHands gameState ! playerName
+      trick = gameStateTrick gameState
   in
   legalCard card hand trick &&
   if gameAtBeginning gameState
@@ -104,10 +104,10 @@ playValid gameState playerName card =
   else nextPlayer gameState == playerName
 
 gameOver :: GameState -> Bool
-gameOver state = all isHandEmpty $ Map.elems $ stateHands state
+gameOver state = all isHandEmpty $ Map.elems $ gameStateHands state
 
 turnOver :: GameState -> Bool
-turnOver state = Map.size (stateHands state) == trickSize (stateTrick state)
+turnOver state = Map.size (gameStateHands state) == trickSize (gameStateTrick state)
 
 data GameEvent =
     HandsDealt (Map PlayerName Hand)
@@ -134,21 +134,21 @@ addToStack playerStack player cards =
 processGameEvent :: GameState -> GameEvent -> GameState
 processGameEvent state event | trace ("processGameEvent " ++ show state ++ " " ++ show event) False = undefined
 processGameEvent state (HandsDealt hands) =
-  GameState { statePlayers = Map.keys hands,
-              stateHands = hands,
-              stateStacks = Map.fromList (map (, []) (Map.keys hands)),
-              stateTrick = emptyTrick }
+  GameState { gameStatePlayers = Map.keys hands,
+              gameStateHands = hands,
+              gameStateStacks = Map.fromList (map (, []) (Map.keys hands)),
+              gameStateTrick = emptyTrick }
 processGameEvent state (PlayerTurn player) =
-  state { statePlayers = rotateTo player (statePlayers state) }
+  state { gameStatePlayers = rotateTo player (gameStatePlayers state) }
 processGameEvent state (CardPlayed player card) =
-  GameState { statePlayers = rotate (rotateTo player (statePlayers state)),
-              stateHands = takeCard (stateHands state) player card,
-              stateStacks = stateStacks state,
-              stateTrick = addToTrick player card (stateTrick state) }
+  GameState { gameStatePlayers = rotate (rotateTo player (gameStatePlayers state)),
+              gameStateHands = takeCard (gameStateHands state) player card,
+              gameStateStacks = gameStateStacks state,
+              gameStateTrick = addToTrick player card (gameStateTrick state) }
 processGameEvent state (TrickTaken player trick) =
-  state { stateStacks = trace (show "addToStack " ++ show player ++ " " ++ show (cardsOfTrick trick) ++ " " ++ show (addToStack (stateStacks state) player (cardsOfTrick trick)))
-                            (addToStack (stateStacks state) player (cardsOfTrick trick)),
-          stateTrick = emptyTrick }
+  state { gameStateStacks = trace (show "addToStack " ++ show player ++ " " ++ show (cardsOfTrick trick) ++ " " ++ show (addToStack (gameStateStacks state) player (cardsOfTrick trick)))
+                            (addToStack (gameStateStacks state) player (cardsOfTrick trick)),
+          gameStateTrick = emptyTrick }
 
 data PlayerState =
   PlayerState { playerHand  :: Hand,
@@ -188,7 +188,7 @@ processGameCommand state (PlayCard player card) =
     let event1 = CardPlayed player card
         state1 = processGameEvent state event1
     in  if turnOver state1 then
-          let trick = stateTrick state1
+          let trick = gameStateTrick state1
               trickTaker = whoTakesTrick trick
               event2 = TrickTaken trickTaker trick
               state2 = processGameEvent state event2

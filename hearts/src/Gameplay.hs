@@ -73,12 +73,12 @@ makeGameIOEventSourcing = makeIOEventSourcing (\ state event -> return (processG
 playerHandM :: Monad monad => GameEventSourcing monad -> PlayerName -> monad Hand
 playerHandM eventSourcing player =
   do state <- eventSourcingReadStateM eventSourcing
-     return (stateHands state M.! player)
+     return (gameStateHands state M.! player)
 
 playerStackM :: Monad monad => GameEventSourcing monad -> PlayerName -> monad [Card]
 playerStackM ges player =
   do state <- eventSourcingReadStateM ges
-     return (stateStacks state M.! player)
+     return (gameStateStacks state M.! player)
 
 type StateWriterEventSourcing state event monad = StateT state (WriterT [event] monad)
 
@@ -92,7 +92,7 @@ processGameEventM event =
 whoTakesTrickM :: Monad monad => GameEventSourcing monad -> monad (PlayerName, Trick)
 whoTakesTrickM ges = do
   state <- eventSourcingReadStateM ges
-  let trick = stateTrick state
+  let trick = gameStateTrick state
   return (whoTakesTrick trick, trick)
 
 turnOverM :: Monad monad => GameEventSourcing monad -> monad Bool
@@ -113,7 +113,7 @@ playValidM ges playerName card  =
 currentTrickM :: Monad monad => GameEventSourcing monad -> monad Trick
 currentTrickM ges =
   do state <- eventSourcingReadStateM ges
-     return (stateTrick state)
+     return (gameStateTrick state)
 
 -- See - error-prone!
 processGameCommandM :: Monad monad => GameEventSourcing monad -> GameCommand -> monad [GameEvent]

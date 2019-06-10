@@ -134,17 +134,17 @@ eventSourcingReadStateM = State.get
 playerHandM :: Monad monad => PlayerName -> GameEventSourcingT monad Hand
 playerHandM playerName =
   do state <- eventSourcingReadStateM
-     return (stateHands state M.! playerName)
+     return (gameStateHands state M.! playerName)
 
 playerStackM :: Monad monad => PlayerName -> GameEventSourcingT monad [Card]
 playerStackM player =
   do state <- eventSourcingReadStateM
-     return (stateStacks state M.! player)
+     return (gameStateStacks state M.! player)
 
 trickM :: Monad monad => GameEventSourcingT monad Trick
 trickM =
   do state <- eventSourcingReadStateM
-     return (stateTrick state)
+     return (gameStateTrick state)
 
 processGameEventM :: Monad monad => GameEvent -> GameEventSourcingT monad ()
 processGameEventM event =
@@ -156,7 +156,7 @@ processGameEventM event =
 whoTakesTrickM :: Monad monad => GameEventSourcingT monad (PlayerName, Trick)
 whoTakesTrickM = do
   state <- eventSourcingReadStateM
-  let trick = stateTrick state
+  let trick = gameStateTrick state
   return (whoTakesTrick trick, trick)
 
 turnOverM :: Monad monad => GameEventSourcingT monad Bool
@@ -177,7 +177,7 @@ playValidM playerName card  =
 currentTrickM :: Monad monad => GameEventSourcingT monad Trick
 currentTrickM =
   do state <- eventSourcingReadStateM
-     return (stateTrick state)
+     return (gameStateTrick state)
 
 nextPlayerM :: Monad monad => GameEventSourcingT monad (PlayerName)
 nextPlayerM =

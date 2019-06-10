@@ -55,8 +55,8 @@ startController :: ControllerConstraints m => [PlayerPackage] -> m ()
 startController players = do
   -- setup game state
   let playerNames = map playerName players
-  State.modify (\state -> state { statePlayers = playerNames,
-                                  stateStacks  = M.fromList (zip playerNames $ repeat [])
+  State.modify (\state -> state { gameStatePlayers = playerNames,
+                                  gameStateStacks  = M.fromList (zip playerNames $ repeat [])
                                 })
   shuffledCards <- liftIO $ Shuffle.shuffleRounds 10 Cards.deck
   let hands = M.fromList (zip playerNames (map S.fromList (Shuffle.distribute (length playerNames) shuffledCards)))
@@ -79,7 +79,7 @@ nextPlayerM =
 
 currentTrickM :: HasGameState m => m Trick
 currentTrickM =
-  fmap stateTrick State.get
+  fmap gameStateTrick State.get
 
 gameOverM :: HasGameState m => m Bool
 gameOverM =
@@ -101,7 +101,7 @@ announceEvent (IllegalMove playerName) =
 announceEvent (GameOver) = do
   liftIO $ putStrLn "Game Over"
   gameState <- State.get
-  let stacks = stateStacks gameState
+  let stacks = gameStateStacks gameState
       playerPenalties = M.map penalty stacks
       loserName = fst $ M.foldrWithKey (\playerName points (loserName, loserPoints) -> 
                                           if points >= loserPoints
@@ -172,23 +172,23 @@ processAndPublishEvent gameEvent = do
 
 processGameEvent :: MonadState GameState monad => GameEvent -> monad ()
 processGameEvent (HandsDealt playerHands) =
-  State.modify (\state -> state { stateHands = playerHands })
+  State.modify (\state -> state { gameStateHands = playerHands })
   -- no good to broadcast this event as everybody knows everybody else's hand
 
 processGameEvent (CardPlayed playerName card) =
   State.modify (\state ->
-                   state { statePlayers = rotate (rotateTo playerName (statePlayers state)),
-                           stateHands   = takeCard (stateHands state) playerName card,
-                           stateStacks  = stateStacks state,
-                           stateTrick   = addToTrick playerName card (stateTrick state)
+                   state { gameStatePlayers = rotate (rotateTo playerName (gameStatePlayers state)),
+                           gameStateHands   = takeCard (gameStateHands state) playerName card,
+                           gameStateStacks  = gameStateStacks state,
+                           gameStateTrick   = addToTrick playerName card (gameStateTrick state)
                          })
 
 processGameEvent (PlayerTurn playerName) = 
-  State.modify (\state -> state { statePlayers = rotateTo playerName (statePlayers state) })
+  State.modify (\state -> state { gameStatePlayers = rotateTo playerName (gameStatePlayers state) })
 
 processGameEvent (TrickTaken playerName trick) =
-  State.modify (\state -> state { stateStacks = (addToStack (stateStacks state) playerName (cardsOfTrick trick)),
-                                  stateTrick = emptyTrick
+  State.modify (\state -> state { gameStateStacks = (addToStack (gameStateStacks state) playerName (cardsOfTrick trick)),
+                                  gameStateTrick = emptyTrick
                                 })
 
 processGameEvent (IllegalMove playerName) =
