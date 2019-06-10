@@ -11,9 +11,10 @@ import Control.Monad.State.Lazy (State, StateT)
 
 import Control.Monad as Monad
 
-import qualified Data.Foldable as F
-import qualified Data.Map.Strict as M
-import qualified Data.Set as S
+import qualified Data.Foldable as Foldable
+import qualified Data.Map.Strict as Map
+import Data.Map.Strict (Map, (!))
+import qualified Data.Set as Set
 
 import Debug.Trace (trace, traceShowId, traceIO, traceM)
 
@@ -56,10 +57,10 @@ startController players = do
   -- setup game state
   let playerNames = map playerName players
   State.modify (\state -> state { gameStatePlayers = playerNames,
-                                  gameStateStacks  = M.fromList (zip playerNames $ repeat [])
+                                  gameStateStacks  = Map.fromList (zip playerNames $ repeat [])
                                 })
   shuffledCards <- liftIO $ Shuffle.shuffleRounds 10 Cards.deck
-  let hands = M.fromList (zip playerNames (map S.fromList (Shuffle.distribute (length playerNames) shuffledCards)))
+  let hands = Map.fromList (zip playerNames (map Set.fromList (Shuffle.distribute (length playerNames) shuffledCards)))
   gameController players [DealHands hands]
 
 -- state projections
@@ -102,8 +103,8 @@ announceEvent (GameOver) = do
   liftIO $ putStrLn "Game Over"
   gameState <- State.get
   let stacks = gameStateStacks gameState
-      playerPenalties = M.map penalty stacks
-      loserName = fst $ M.foldrWithKey (\playerName points (loserName, loserPoints) -> 
+      playerPenalties = Map.map penalty stacks
+      loserName = fst $ Map.foldrWithKey (\playerName points (loserName, loserPoints) -> 
                                           if points >= loserPoints
                                           then (playerName, points)
                                           else (loserName, loserPoints)
@@ -113,7 +114,7 @@ announceEvent (GameOver) = do
         putStr " has "
         putStr (show points)
         putStrLn " points."
-  liftIO $ mapM_ stackInfo (M.assocs playerPenalties)
+  liftIO $ mapM_ stackInfo (Map.assocs playerPenalties)
   liftIO $ putStrLn (loserName ++ " lost the game.")
 announceEvent gameEvent =
   liftIO $ putStrLn (show gameEvent)
@@ -127,7 +128,7 @@ gameController players commands = do
   -- traceM ("** GAMESTATE: " ++ show st)
   -- traceM ("** OUTGOING EVENTS " ++ show events)
   (players', commands') <- Writer.runWriterT $ mapM
-    (\pp -> do cp' <- F.foldlM runPlayer (commandProcessor pp) events
+    (\pp -> do cp' <- Foldable.foldlM runPlayer (commandProcessor pp) events
                return pp { commandProcessor = cp' }
     ) players
   unless (null commands') $
@@ -210,7 +211,7 @@ playerProcessGameEvent :: (HasPlayerState m, PlayerConstraints m) => PlayerName 
 playerProcessGameEvent playerName gameEvent = do
   case gameEvent of
     HandsDealt hands ->
-      State.put (PlayerState { playerHand = hands M.! playerName,
+      State.put (PlayerState { playerHand = hands ! playerName,
                                playerTrick = emptyTrick,
                                playerStack = [] })
 
@@ -248,7 +249,7 @@ strategyPlayer playerName strategy@(PlayerStrategy chooseCard) playerState =
       -- traceM ("** PLAYER " ++ playerName ++ ": " ++ show playerState)
       case event of
         HandsDealt _ ->
-          when (S.member twoOfClubs (playerHand playerState)) $
+          when (Set.member twoOfClubs (playerHand playerState)) $
             Writer.tell [PlayCard playerName twoOfClubs]
 
         PlayerTurn turnPlayerName ->
@@ -281,14 +282,14 @@ playAlongStrategy =
       hand = playerHand playerState
       firstCard = leadingCardOfTrick trick
       firstSuit = suit firstCard
-      followingCardsOnHand = S.filter ((== firstSuit) . suit) hand
+      followingCardsOnHand = Set.filter ((== firstSuit) . suit) hand
   if trickEmpty trick 
     then
-      return (S.findMin hand)
+      return (Set.findMin hand)
     else
-      case S.lookupMin followingCardsOnHand of
+      case Set.lookupMin followingCardsOnHand of
         Nothing ->
-          return (S.findMax hand) -- any card is fine, so try to get rid of high hearts
+          return (Set.findMax hand) -- any card is fine, so try to get rid of high hearts
         Just card ->
           return card           -- otherwise use the minimal following card
 
@@ -304,8 +305,8 @@ playInteractive =
       liftIO $ putStrLn "You lead the next trick!"
     else
       liftIO $ putStrLn ("Cards on table: " ++ show (reverse trick))
-  let myhand = S.elems hand
-      ncards = S.size hand
+  let myhand = Set.elems hand
+      ncards = Set.size hand
   liftIO $ putStrLn ("Your hand:")
   liftIO $ putStrLn (pretty (zip [(1::Integer)..] myhand))
   liftIO $ putStrLn ("Pick a card (1-" ++ show ncards ++ ")")

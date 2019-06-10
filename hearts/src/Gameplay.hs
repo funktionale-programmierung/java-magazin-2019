@@ -25,8 +25,9 @@ import qualified Control.Monad.Identity as Identity
 import qualified Data.Sequence as Sequence
 import Data.Sequence (Seq, (><))
 
-import qualified Data.Map.Strict as M
-import qualified Data.Set as S
+import qualified Data.Map.Strict as Map
+import Data.Map.Strict (Map)
+import qualified Data.Set as Set
 
 import Data.Foldable
 
@@ -73,12 +74,12 @@ makeGameIOEventSourcing = makeIOEventSourcing (\ state event -> return (processG
 playerHandM :: Monad monad => GameEventSourcing monad -> PlayerName -> monad Hand
 playerHandM eventSourcing player =
   do state <- eventSourcingReadStateM eventSourcing
-     return (gameStateHands state M.! player)
+     return (gameStateHands state Map.! player)
 
 playerStackM :: Monad monad => GameEventSourcing monad -> PlayerName -> monad [Card]
 playerStackM ges player =
   do state <- eventSourcingReadStateM ges
-     return (gameStateStacks state M.! player)
+     return (gameStateStacks state Map.! player)
 
 type StateWriterEventSourcing state event monad = StateT state (WriterT [event] monad)
 
@@ -195,7 +196,7 @@ strategyPlayer playerName strategy =
            playerState <- State.get
            case event of
              HandsDealt hands ->
-               if S.member twoOfClubs (playerHand playerState)
+               if Set.member twoOfClubs (playerHand playerState)
                then return [PlayCard playerName twoOfClubs]
                else return []
              PlayerTurn name' ->
@@ -207,7 +208,7 @@ strategyPlayer playerName strategy =
              TrickTaken name' trick -> return []
   in Player playerName play
 
-type Players monad = M.Map PlayerName (EventProcessor monad)
+type Players monad = Map PlayerName (EventProcessor monad)
 
 playEvent :: Monad monad => Players monad -> GameEvent -> monad (Seq GameCommand)
 playEvent players gameEvent | trace ("playEvent " ++ show gameEvent) False = undefined
@@ -234,8 +235,8 @@ playCommand ges players gameCommand =
 playGame :: MonadIO monad => GameEventSourcing monad -> Players monad -> [Card] -> monad ()
 playGame ges players cards = do
   shuffledCards <- liftIO $ shuffleRounds 10 cards
-  let playerNames = M.keys players
-      hands = M.fromList (zip playerNames (map S.fromList (distribute (length playerNames) shuffledCards)))
+  let playerNames = Map.keys players
+      hands = Map.fromList (zip playerNames (map Set.fromList (distribute (length playerNames) shuffledCards)))
   playCommand ges players (DealHands hands)
 
 
@@ -286,7 +287,7 @@ unpackPlayers :: Monad monad => [PlayerPackage monad] -> monad (Players monad)
 unpackPlayers playerPackages =
   do eventProcessors <- mapM playerPackageEventProcessorM playerPackages
      let playerNames = map playerPackageName playerPackages
-     return (M.fromList (zip playerNames eventProcessors))
+     return (Map.fromList (zip playerNames eventProcessors))
 
 ioPlayerPackage :: PlayerName -> Strategy IO -> PlayerPackage IO
 ioPlayerPackage playerName strategy =
@@ -300,14 +301,14 @@ ioPlayerPackage playerName strategy =
 -- |stupid robo player
 playAlong :: Strategy IO
 playAlong player hand [] stack =
-  return (S.findMin hand)       -- coming up, choose a small first card
+  return (Set.findMin hand)       -- coming up, choose a small first card
 playAlong player hand trick stack =
   let (_, firstCard) = last trick
       firstSuit = suit firstCard
-      followingCardsOnHand = S.filter ((== firstSuit) . suit) hand
-  in  case S.lookupMin followingCardsOnHand of
+      followingCardsOnHand = Set.filter ((== firstSuit) . suit) hand
+  in  case Set.lookupMin followingCardsOnHand of
         Nothing ->
-          return (S.findMax hand) -- any card is fine, so try to get rid of high hearts
+          return (Set.findMax hand) -- any card is fine, so try to get rid of high hearts
         Just card ->
           return card           -- otherwise use the minimal following card
 
@@ -320,8 +321,8 @@ playInteractive player hand trick stack =
          putStrLn "You lead the next trick."
        _ ->
          putStrLn ("Cards on table: " ++ show (reverse trick))
-     let myhand = S.elems hand
-         ncards = S.size hand
+     let myhand = Set.elems hand
+         ncards = Set.size hand
      putStrLn ("Your hand: " ++ pretty myhand)
      putStrLn ("Pick a card (1-" ++ show ncards ++ ")")
      selected <- getNumber (1,ncards)

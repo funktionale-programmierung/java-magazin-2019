@@ -36,8 +36,9 @@ import Shuffle
 import Game
 import RWT
 
-import qualified Data.Map.Strict as M
-import qualified Data.Set as S
+import qualified Data.Map.Strict as Map
+import Data.Map.Strict (Map)
+import qualified Data.Set as Set
 
 import Debug.Trace (trace)
 
@@ -50,19 +51,19 @@ class Monad monad => Player' player monad event command | player -> monad, playe
 
 type EventProcessor monad event command = event -> monad [command]
 
-type Players monad event command = M.Map PlayerName (EventProcessor monad event command)
+type Players monad event command = Map PlayerName (EventProcessor monad event command)
 
 emptyPlayers :: Players monad event command
-emptyPlayers = M.empty
+emptyPlayers = Map.empty
 
 addPlayer :: (Monad monad, Player player monadT event command) => Players monad event command -> PlayerName -> player -> Players (monadT monad) event command
 addPlayer players playerName player =
   let liftProcessor processor = \ event -> lift (processor event)
-  in M.insert playerName (play player) (M.map liftProcessor players)
+  in Map.insert playerName (play player) (Map.map liftProcessor players)
 
 addPlayer' :: Player' player monad event command =>  Players monad event command -> PlayerName -> player -> Players monad event command
 addPlayer' players playerName player' =
-  M.insert playerName (play' player') players
+  Map.insert playerName (play' player') players
   
 class MonadTrans monadT => Strategy strategy monadT | strategy -> monadT  where
   chooseCard :: Monad monad => strategy -> PlayerName -> PlayerState -> (monadT monad) Card
@@ -134,12 +135,12 @@ eventSourcingReadStateM = State.get
 playerHandM :: Monad monad => PlayerName -> GameEventSourcingT monad Hand
 playerHandM playerName =
   do state <- eventSourcingReadStateM
-     return (gameStateHands state M.! playerName)
+     return (gameStateHands state Map.! playerName)
 
 playerStackM :: Monad monad => PlayerName -> GameEventSourcingT monad [Card]
 playerStackM player =
   do state <- eventSourcingReadStateM
-     return (gameStateStacks state M.! player)
+     return (gameStateStacks state Map.! player)
 
 trickM :: Monad monad => GameEventSourcingT monad Trick
 trickM =
@@ -220,8 +221,8 @@ playGame players cards = do
   -- shuffledCards <- liftIO $ shuffleRounds 10 cards
   let shuffledCards = cards
   -- FIXME: split here
-  let playerNames = M.keys players
-      hands = M.fromList (zip playerNames (map S.fromList (distribute (length playerNames) shuffledCards)))
+  let playerNames = Map.keys players
+      hands = Map.fromList (zip playerNames (map Set.fromList (distribute (length playerNames) shuffledCards)))
   playCommand players (DealHands hands)
 
 -- |stupid robo player
@@ -232,15 +233,15 @@ instance Strategy PlayAlong IdentityT where
 -- playAlong ::  Monad monad => PlayerState -> IdentityT monad Card
   chooseCard _ _ playerState =
     case playerTrick playerState of
-      [] -> return (S.findMin (playerHand playerState))       -- coming up, choose a small first card
+      [] -> return (Set.findMin (playerHand playerState))       -- coming up, choose a small first card
       trick ->
         let hand = playerHand playerState
             (_, firstCard) = last trick
             firstSuit = suit firstCard
-            followingCardsOnHand = S.filter ((== firstSuit) . suit) hand
-        in  case S.lookupMin followingCardsOnHand of
+            followingCardsOnHand = Set.filter ((== firstSuit) . suit) hand
+        in  case Set.lookupMin followingCardsOnHand of
               Nothing ->
-                return (S.findMax hand) -- any card is fine, so try to get rid of high hearts
+                return (Set.findMax hand) -- any card is fine, so try to get rid of high hearts
               Just card ->
                 return card           -- otherwise use the minimal following card
 
@@ -259,8 +260,8 @@ instance Strategy PlayInteractive (RWT PlayerState) where
          trick ->
            RWT.putString ("Cards on table: " ++ show (reverse trick))
        let hand = playerHand playerState
-           myhand = S.elems hand
-           ncards = S.size hand
+           myhand = Set.elems hand
+           ncards = Set.size hand
        RWT.putString ("Your hand: " ++ pretty myhand)
        RWT.putString ("Pick a card (1-" ++ show ncards ++ ")")
        selected <- RWT.getNumber (1,ncards)
