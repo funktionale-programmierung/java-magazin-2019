@@ -22,19 +22,19 @@ emptyTrick :: Trick
 emptyTrick = []
 
 trickEmpty :: Trick -> Bool
-trickEmpty = null
+trickEmpty trick = null trick
 
 trickSize :: Trick -> Int
-trickSize = length
+trickSize trick = length trick
 
 cardsOfTrick :: Trick -> [Card]
-cardsOfTrick = map snd
+cardsOfTrick trick = map snd trick
 
 addToTrick :: PlayerName -> Card -> Trick -> Trick
 addToTrick playerName card trick = (playerName, card) : trick
 
 leadingCardOfTrick :: Trick -> Card
-leadingCardOfTrick = snd . last
+leadingCardOfTrick trick = snd (last trick)
 
 whoTakesTrick :: Trick -> PlayerName
 whoTakesTrick [] = undefined
