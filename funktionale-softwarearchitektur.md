@@ -4,9 +4,9 @@
 
 ## Abstract
 
-Nachhaltige Softwarearchitektur ist eine Herausvorderung: Mit der
-Größe nimmt in vielen klassich objektorientierten Softwareprojekten
-auch die Komplexität zu.  Mit viel Disziplin und regelmäßigen
+Der Entwurf von nachhaltigen Softwarearchitekturen ist eine Herausvorderung: Mit der
+Größe steigt in vielen klassisch objektorientierten Softwareprojekten
+die Komplexität überproportional an.  Mit viel Disziplin und regelmäßigen
 Refaktorisierungen lässt sich das Problem eine Weile in Schach halten,
 aber die wechselseitigen Abhängigkeiten und komplexen Abläufe von
 Zustandsveränderungen nehmen mit der Zeit trotzdem zu.
@@ -16,30 +16,29 @@ viele Quellen von Komplexität und Wechselwirkungen im System.
 
 ## Aspekte funktionaler Softwarearchitektur
 
-Erst einmal zum Begriff: "Funktionale Softwarearchitektur" heißt
-Softwarearchitektur mit den Mitteln der funktionalen Programmierung,
-also nicht "Softwarearchitektur, die funktioniert".  (Obwohl das
-natürlich auch der Fall ist.)  Funktionale Softwarearchitektur
-zeichnet sich aus durch folgende Aspekte:
+"Funktionale Softwarearchitektur" steht für das Ergebnis eines
+Softwareentwurfs mit den Mitteln der funktionalen Programmierung.
+Sie zeichnet sich unter anderem durch folgende Aspekte aus:
 
-* Statt des Objekts mit gekapseltem Zustand ist die fundamentale
-  Einheit funktionaler Architektur die *Funktion*, die auf
-  *unveränderlichen Daten* arbeitet.  Auch sonst werden die *Effekte*
-  eingeschränkt, die Funktionen haben können.
+* An die Stelle des Objekts mit gekapseltem Zustand tritt die *Funktion*, die auf
+  *unveränderlichen Daten* arbeitet.  
 
-* Die mächtigen Typsysteme funktionaler Sprachen (ob statisch oder
-  dynamisch) erlauben ein von den *Typen* aus getriebenes,
+<!-- Auch sonst werden die *Effekte* eingeschränkt, die Funktionen haben können. -->
+
+* <!-- Die mächtigen Typsysteme --> Funktionale Sprachen (ob statisch oder
+  dynamisch) erlauben ein von *Typen*  getriebenes,
   systematisches Design von Datenmodellen und Funktionen.
 
-* In funktionaler Architekur entstehen statt starrer hierarchischen
-  Strukturen flexible sogenannte *Kombinatormodelle* und in die
+* <!-- In funktionaler Architekur entstehen --> Statt starrer hierarchischen
+  Strukturen entstehen flexible <!-- sogenannte *Kombinatormodelle* und --> in die
   funktionale Programmiersprache *eingebettete domänenspezifische
   Sprachen*.
 
-Das ist also ein ziemlich weites Feld (und die Liste ist noch nicht
-einmal vollständig), und jedes dieser Aspekte füllt ganze Bücher.  Wir
-konzentrieren uns in diesem Artikel darum auf den ersten Punkt, also
-den Umgang mit Funktionen und unverändlichen Daten.  Dabei werden wir
+<!-- Das ist also ein ziemlich weites Feld (und die Liste ist noch nicht -->
+<!-- einmal vollständig), und jedes dieser Aspekte füllt ganze Bücher. -->
+
+Wir konzentrieren uns in diesem Artikel auf den ersten Punkt, also
+den Umgang mit Funktionen und unveränderlichen Daten.  Dabei werden wir
 auch die Rolle von Typen beleuchten.
 
 Der Code zu diesem Artikel ist in einem Github-Repositorium abrufbar:
@@ -49,85 +48,82 @@ Der Code zu diesem Artikel ist in einem Github-Repositorium abrufbar:
 ## Funktionale Programmiersprachen
 
 Funktionale Softwarearchitektur ist in (fast) jeder Programmiersprache
-möglich, aber so richtig Freude macht das nur mit einer funktionalen
+möglich, aber in einer funktionalen
 Sprache wie Haskell, OCaml, Clojure, Scala, Elixir, Erlang, F# oder
-Swift.  Funktionale Softwarearchitektur wird außerdem in der Regel als
+Swift ist diese Herangehensweise besonders natürlich.
+Funktionale Softwarearchitektur wird in der Regel als
 Code ausgedrückt, also nicht in Form von Diagrammen.  Entsprechend
 benutzen wir für die Beispiele in diesem Artikel die funktionale
-Sprache Haskell [^1], die besonders kurze und elegante Programme
+Sprache Haskell[^1], die besonders kurze und elegante Programme
 ermöglicht.  Keine Sorge: Wir erläutern den Code, so dass er auch ohne
-Vorkenntnisse in Haskell lesbar ist.  Wer aber selbst in Haskell
-programmieren will, sollte sich zunächst noch eine Einführung in
-funktionale Programmierung [^2] und ein Buch zu Haskell [^3] zu Gemüte
+Vorkenntnisse in Haskell lesbar ist.  Wer dadurch auf Haskell
+neugierig geworden ist, kann sich mit Anschlusss eine Einführung in 
+funktionale Programmierung[^2] und ein Buch zu Haskell[^3] zu Gemüte
 führen.
 
 ## Überblick
 
-Wir erklären die funktionale Softwarearchitektur anhand des
-Kartenspiel *Hearts* [^4], von dem wir nur die wichtigsten Teile
-umsetzen:
+Wir erklären den Entwurf einer funktionalen Softwarearchitektur anhand des
+Kartenspiel *Hearts*[^4], von dem wir nur die wichtigsten Teile
+umsetzen.
 
-Hearts wird mit vier Spielerinnen gespielt.  In jeder Runde eröffnet
-eine Spielerin, in dem sie eine Karte ausspielt. (Am Anfang die
-Spielerin muss das die Kreuz Zwei sein.)  Die nächste Spielerin muss
-dann, wenn möglich, eine Karte mit der gleichen Farbe wie die
-Eröffnungskarte ausspielen.  Haben alle Spielerinnen eine Karte
+Hearts wird zu Viert gespielt.  In jeder Runde eröffnet
+eine Spielerin, indem sie eine Karte ausspielt. (Zu Beginn des Spiels
+muss das die Kreuz Zwei sein.)  Die nächste Spielerin muss, wenn
+möglich, eine Karte mit der gleichen Farbe wie die Eröffnungskarte
+ausspielen. Anderenfalls darf sie eine beliebige Karte abwerfen.  Haben alle Spielerinnen eine Karte
 ausgespielt, muss die Spielerin den Stich einziehen, deren Karte die
 gleiche Farbe wie die Eröffnungskarte hat sowie den höchsten Wert.
 Ziel ist, mit den eingezogenen Karten einen möglichst geringen
-Punktestand zu erreichen.
+Punktestand zu erreichen. Dabei zählt die Pik Dame 13 Punkte und jede
+Herzkarte einen Punkt; alle weiteren Karten 0 Punkte.
 
-![Abbildung 1: Modellierung des Spielablaufs](gameplay.pdf)
+![Modellierung des Spielablaufs](gameplay.pdf)
 
-Wir implementieren das Kartenspiel auf der Basis von *domain events*.
+Als Basis des Entwurfs verwenden wir ein klassisches taktisches Muster aus dem
+*Domain-Driven Design*[^5] und modellieren das Kartenspiel auf der
+Basis von *domain events*. 
 Abbildung 1 zeigt den Ablauf: Jede Spielerin nimmt Events entgegen,
 die den bisherigen Spielverlauf repräsentieren, und generiert dafür
 Commands, die Spielzüge repräsentieren.  Die "Gameplay"-Komponente
 nimmt die Commands entgegen, überprüft sie auf Korrektheit (War die
-Spielerin überhauptd ran? War der Spielzug regelkonform?) und
+Spielerin überhaupt dran? War der Spielzug regelkonform?) und
 generiert ihrerseits daraus wieder Events.
+Das Muster ist das gleiche wie in "objektorientiertem DDD", aber die
+Umsetzung unterscheidet sich durch die Verwendung von unveränderlichen Daten und Funktionen. 
 
-Diese Architektur ist ein klassisches taktisches Pattern aus dem
-*Domain-Driven Design*[^5].  Während das Pattern das gleiche ist wie
-in "objektorientiertem DDD", unterscheidet sich die Umsetzung gerade
-in der Verwendung von unverändlichen Daten und Funktionen. (In der
-funktionalen Programmierung stehen auch andere leistungsfähige
-Patterns zur Verfügung wie fs2/conduit FIXME, deren Erläuterung aber mehr
-Vorlauf erfordern würde, als hier Platz zur Verfügung steht.)
-
-Wir stellen die Kommunikation zwischen den einzelnen Komponenten der
+Im Beispiel stellen wir die Kommunikation zwischen den einzelnen Komponenten der
 Architektur direkt mit Funktionsaufrufen her, aber andere
 Mechanismen - nebenläufige Prozesse oder Mikroservices - sind
 natürlich auch möglich.
 
 ## Programmieren mit unveränderlichen Daten
 
-Eine Vorbemerkung: "Unverändlicher Daten" bedeutet, dass Objekte nicht
-verändert werden - es gibt keine Zuweisungen, die Attribute von
-Objekten verändern können.  Wenn Veränderung modelliert werden soll,
-so generiert ein funktionales Programm in der Regel neue Objekte.  Das
-mag erstmal als reine Einschränkung erscheinen, bietet aber enorme
-Vorteile:
+Eine Vorbemerkung: "Unveränderliche Daten" bedeutet, dass es keine Zuweisungen gibt, die Attribute von
+Objekten verändern könnten.  Wenn Veränderung modelliert werden soll,
+so generiert ein funktionales Programm neue Objekte.  Das
+mag als Einschränkung erscheinen, bietet aber enorme Vorteile:
 
-* Es gibt niemals Probleme mit interferierenden Veränderungen des
-  Zustands durch die Aufrufe von Methoden oder nebenläufige Prozesse.
+* Es gibt niemals Probleme mit verdeckten Zustandsänderungen durch
+  Methodenaufrufe oder nebenläufige Prozesse. 
   
-* Es gibt keine inkonsistenten, "Zwischenzustände" dadurch, dass das
-  Programm erst das eine Feld, dann das nächste etc. setzt
+* Es gibt keine inkonsistenten Zwischenzustände dadurch, dass ein
+  Programm erst das eine Feld, dann das nächste etc. setzt.
 
 * Das Programm kann problemlos durch ein Gedächtnis erweitert werden,
-  das zum Beispiel zum vorigen Spielständen zurückkehrt, wenn eine
+  das zum Beispiel zum früheren Spielständen zurückkehrt, wenn eine
   Spielerin ihren Zug zurücknimmt.
 
 * Es gibt keine verstecken Abhängigkeiten durch die Kommunikation von
-  Zustand hinter den Kulissen.
+Zustand hinter den Kulissen.
+
+Aus diesen Gründen werden auch in Java oft Value-Objekte verwendet.
   
 ## Kartenspiel modellieren
 
-Jetzt geht es aber mit der konkreten Modellierung los.  Wir fangen den
-Spielkarten an.  Die folgende
-Definition eines Datentyps legt fest, dass ein Karte eine Farbe
-("suit") und und Wert ("rank") hat:
+Die konkrete Modellierung beginnt mit den Spielkarten.  Die folgende
+Deklaration des Datentyps "Card" definiert einen Recordtyp (struct)
+und legt damit fest, dass eine Karte eine Farbe ("suit") und einen Wert ("rank") hat.
 
 ```haskell
 data Card = Card { suit :: Suit, rank :: Rank }
@@ -136,11 +132,11 @@ data Card = Card { suit :: Suit, rank :: Rank }
 
 Die Zeile `deriving (Show, Eq, Ord)` sorgt dafür, dass Haskell
 automatisch Funktionen generiert, um einen Wert auszudrucken (`Show` -
-analog zum Beispiel zu `toString` in Java), auf Gleichheit zu testen
-(`Eq` - analog zu `equals`) und mit "größer als" und "kleiner als" zu
-vergleichen (`Ord` - analog zu `compareTo`).
+analog zum Beispiel zu `toString()` in Java), auf Gleichheit zu testen
+(`Eq` - analog zu `equals()`) und mit "größer als" und "kleiner als" zu
+vergleichen (`Ord` - analog zu `compareTo()`).
 
-Für die Definition werden noch Definitionen von `Suit` und `Rank`
+Weiter werden noch Definitionen von `Suit` und `Rank`
 benötigt:
 
 ```haskell
@@ -151,14 +147,14 @@ data Rank = Numeric Integer | Jack | Queen | King | Ace
   deriving (Show, Eq, Ord)
 ```
 
-Hier handelt es sich um Aufzählungen - das `|` steht für "Oder",
+Hier handelt es sich um Aufzählungen (vergleichbar mit `enum` in Java) - das `|` steht für "Oder",
 entsprechend steht dort: Ein `Suit` ist `Diamonds` oder `Clubs` oder
 `Spades` oder `Hearts`.  Bei `Rank` ist es ähnlich - zusätzlich hat
 eine der Alternativen, `Numeric`, ein Feld vom Typ `Integer`, das den
 Wert einer Zahlenspielkarte angibt.  Bei `Rank` sind die Alternativen
 schon so angeordnet, dass der Vergleich aus `Ord` den Wert der
 Spielkarten korrekt abbildet.
-  
+
 Hier ist die Definition der Kreuz Zwei auf Basis dieser
 Datentypdefinition in Form einer Gleichung:
 
@@ -170,12 +166,13 @@ Das Beispiel zeigt, dass `Card` als Konstruktorfunktion agiert.
 Außerdem auffällig: In Haskell werden Funktionsaufrufe ohne Klammern
 und Komma geschrieben, Klammern dienen nur zum Gruppieren.
 
-FIXME: Selektoren erläutern
+Die Deklaration von `Cards` definiert auch die Selektoren `suit` und
+`rank`, die wie Funktionen verwendet werden. 
 
 Für Hearts wird ein kompletter Satz Karten benötigt.  Der wird durch
 folgende Definitionen generiert, die jeweils eine Liste aller Farben,
 eine Liste aller Werte und schließlich daraus eine Liste aller Karten
-(also aller Kombinationen aus Farben und Werten).
+(also aller Kombinationen aus Farben und Werten) konstruieren.
 
 ```haskell
 allSuits :: [Suit]
@@ -190,40 +187,32 @@ deck = [Card suit rank | rank <- allRanks, suit <- allSuits]
 
 Jede Definition wird von einer *Typdeklaration* begleitet.  `allSuits
 :: [Suit]` bedeutet, dass `allSuits` eine *Liste* (die eckigen
-Klammern) von Farben ist.  Die Definitionen für `allRanks` benutzen
-sogenannte Comprehension-Syntax, um effizient platzsparend Werte und
-schließlich alle Karten aufzuzählen.  Das `deck` wird von Haskell
-folgendermaßen ausgedruckt:
+Klammern) von Farben ist.  Die Definitionen für `allRanks` und `deck` benutzen
+sogenannte Comprehension-Syntax[^6], um konzise die Werte und
+schließlich alle Karten aufzuzählen.
 
-```
-[Card {suit = Spades, rank = Numeric 2},
- Card {suit = Hearts, rank = Numeric 2}, 
- <50 weitere Karten>]
-```
-
-Für die Umsetzung von Hearts müssen die Karten repräsentiert werden,
-die eine Spielerin auf der Hand hat - die ist als Menge von Karten
-repräsentiert:
+Für die Umsetzung eines Kartenspiels müssen die Karten repräsentiert werden,
+die eine Spielerin auf der Hand hat: als Menge von Karten.
 
 ```haskell
 type Hand = Set Card
 ```
 
-Wir nehmen an, dass das Standard-Modul `Set`, das hier benutzt wird,
-explizit importiert wurde.  Dort steht `type` und nicht `data`, weil
-kein neuer Typ definiert wurde sondern nur ein Typsynonym.
+Der Typ `Set` ist ein generischer Type, der von der Standardbibliothek
+importiert wird.  Für `Hand` wird eine `type`-Deklaration verwendet,
+die ein Typsynonym definiert.
 
 Einige Hilfsdefinitionen erleichtern den Umgang mit dem Typ `Hand`.
-Zunächst die Funktion `isHandEmpty` - der Typ `Hand -> Bool` bedeutet
-"Funktion, die eine Hand als Eingabe nimmt und ein `Bool` als Ausgabe
-liefert:
+Die Funktion `isHandEmpty` hat den Typ `Hand -> Bool`, was eine 
+"Funktion, die eine `Hand` als Eingabe nimmt und ein `Bool` als Ausgabe
+liefert" beschreibt:
 
 ```haskell
 isHandEmpty :: Hand -> Bool
 isHandEmpty hand = Set.null hand
 ```
 
-Die nächste Funktion `containsCard` ist zweistellig und prüft mit
+Die Funktion `containsCard` ist nimmt zwei Argumente und prüft mit
 Hilfe der Library-Funktion `Set.member`, ob eine
 gegebene Karte zu einer Hand gehört:
 
@@ -232,15 +221,15 @@ containsCard :: Card -> Hand -> Bool
 containsCard card hand = Set.member card hand
 ```
 
-Die merkwürdige Typsystem `Card -> Hand -> Bool` wird erst deutlich,
-wenn sie korrekt geklammert wird, nämlich von rechts: `Card -> (Hand
--> Bool)`  Das bedeutet, dass die Funktion zunächst eine Karte
+Der Typ `Card -> Hand -> Bool` wird erst verständlich,
+wenn er von rechts geklammert wird: `Card -> (Hand -> Bool)`.
+Das bedeutet, dass die Funktion zunächst eine Karte
 akzeptiert und dann *eine Funktion liefert*, die ihrerseits eine Hand
 akzeptiert und dann einen booleschen Wert zurückliefert.  Streng
-genommen kennt Haskell also nur einstellige Funktionen und "simuliert"
-höherstellige Funktionen durch diese Technik.
+genommen kennt Haskell nur einstellige Funktionen und "simuliert"
+mehrstellige Funktionen durch diese Technik[^7].
 
-Die nächste Funktion schließlich zeigt beispielhaft, wie der Umgang
+Die nächste Funktion zeigt beispielhaft, wie der Umgang
 mit unveränderlichen Daten funktioniert - `removeCard` entfernt eine
 Karte aus einer Hand:
 
@@ -249,9 +238,9 @@ removeCard :: Card -> Hand -> Hand
 removeCard card hand = Set.delete card hand
 ```
 
-In typischem Java hätte diese Methode eine Signatur wie `void
-removeCard(Card card)` und würde den Zustand des `Hand`-Objekts
-verändern.  Nicht so in der funktionalen Programmierung, wo
+In idiomatischem Java hätte das `Hand`-Objekt eine Methode `void
+removeCard(Card card)`, die den Zustand des `Hand`-Objekts
+ entsprechend verändert.  Nicht so in der funktionalen Programmierung, wo
 `removeCard` eine neue Hand liefert und die alte Hand unverändert
 lässt.  Nach:
 
@@ -261,14 +250,15 @@ hand2 = removeCard card hand1
 
 ist `hand1` immer noch die "alte" Hand und `hand2` die neue.
 
-Das ist in Haskell nicht nur eine Konvention: Eine Funktion *kann* gar
+Das ist in Haskell nicht nur eine Konvention: Eine Funktion *kann* 
 nicht einfach so Objekte "verändern", es handelt es sich im Sprech der
 funktionalen Programmierung immer um eine "reine" oder "pure"
 Funktion.  Diese rein funktionale Programmierung macht die Typsignatur
 enorm nützlich, weil sie wirklich alles aufführt, was in die Funktion
 hineingeht und wieder hinausgeht: Es gibt keine versteckten
 Abhängigkeiten zu globalem Zustand und alle Ausgaben stehen hinter dem
-rechten Pfeil der Signatur.
+rechten Pfeil der Signatur. Daher sind die rechten und linken Seiten
+einer Definitionsgleichung überall im Programm jederzeit austauschbar.
 
 Da Hearts ein sogenanntes "Stichspiel" ist, hat der Code einen Typ für
 den Stich, auf englisch "Trick".  Dieser muss mitführen, wer welche
@@ -514,15 +504,19 @@ Flexibilität und Wohlbefinden.
 
 ## Quellen
 
-[^1]: haskell.org
+[^1]: [`https://www.haskell.org/`](https://www.haskell.org)
 
 [^2]: Michael Sperber, Herbert Klaeren: *Schreibe Dein Programm!*, [`https://www.deinprogramm.de`](https://www.deinprogramm.de)
 
 [^3]: Hutton, Graham: *Programming in Haskell*, FIXME
 
-[^4]: Hearts auf Wikipedia, FIXME
+[^4]: Hearts auf Wikipedia, [`https://en.wikipedia.org/wiki/Hearts_(card_game)`](https://en.wikipedia.org/wiki/Hearts_(card_game))
 
 [^5]: Vaughn, Vernon: *Domain-Driven Design Distilled*, Pearson, 2016.
+
+[^6]: Die auch in Python Eingang gefunden hat.
+
+[^7]: Funktionale Programmierer sprechen von *curried functions* und *currying*, [`https://en.wikipedia.org/wiki/Currying`](https://en.wikipedia.org/wiki/Currying). 
 
 ## Michael Sperber
 
