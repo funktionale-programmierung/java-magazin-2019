@@ -1,13 +1,7 @@
-{-# LANGUAGE TupleSections #-}
-{-# LANGUAGE KindSignatures #-}
-{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FunctionalDependencies #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE DerivingVia #-}
-{-# LANGUAGE InstanceSigs #-}
 
 module GameplayT where
 
