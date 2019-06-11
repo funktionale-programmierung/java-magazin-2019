@@ -290,49 +290,49 @@ eingebaute *Higher-Order-Funktion* `map` bemüht, deren Typsignatur so
 aussieht:
 
 ```haskell
-map :: [a] -> (a -> b) -> [b]
+map :: (a -> b) -> [a] ->[b]
 ```
 
 Das `a` und das `b` sind *Typvariablen*, in Java-Sprech Generics.
-Ausgesprochen steht dort: `map` akzeptiert eine Liste von `a`s sowie
-eine Funktion, die aus einem `a` ein `b` macht und liefert eine Liste
+Ausgesprochen steht dort: `map` akzeptiert 
+eine Funktion, die aus einem `a` ein `b` macht, sowie eine Liste von `a`s und liefert eine Liste
 von `b`s.  Bei `cardsOfTrick` ist `a` das Zwei-Tupel `(PlayerName,
 Card)` und `b` ist `Card`.  Die Funktion `snd` extrahiert aus dem
-Zwei-Tupel die zweite Komponente und deshalb folgenden Typ:
+Zwei-Tupel die zweite Komponente und hat deshalb folgenden Typ:
 
 ```haskell
 snd :: (a, b) -> b
 ```
 
 Solche generischen Funktionen gibt es (inzwischen) auch in Java, aber
-in funktionalen Sprachen kommen sie viel häufiger zur Anwendung.
+in funktionalen Sprachen kommen sie im Zusammenhang mit
+Higher-Order-Funktionen viel häufiger zur Anwendung. 
 
 Funktionen wie `map` sind ein wichtiger Aspekt funktionaler
 Architektur: Diese macht nicht an der konkreten Modellierung von
 fachlichem Wissen halt, sondern erlaubt den Entwicklerinnen,
 Abstraktionen zu bilden, die das fachliche Wissen verallgemeinern.
 
-Für die Abstraktionsfähigkeit in der funktionalen Sprache ist dies nur
-ein winziges Beispiel.  Sie potenziert aber ihre Fähigkeit im
-Zusammenhang mit den reinen Funktionen: Weil Funktionen nie etwas
+Das Zusammenspiel von generischen Higher-Order-Funktionen und anderen
+reinen Funktionen liefert die Basis für ein extrem mächtiges Konstruktionsprinzip:
+Weil Funktionen nie etwas
 "verstecktes" machen, können sie bedenkenlos zu immer größeren
 Gebilden zusammengestöpselt werden.  In OO-Sprachen wächst mit der
 Größe das Risiko, dass versteckte Effekte unerwünschte
 Wechselwirkungen haben.  Deshalb sind Disziplin und eigene
 architektonische Patterns notwendig, um die resultierende Komplexität
 in den Griff zu bekommen.  In der funktionalen Programmierung ist das
-nicht so, und entsprechend ist das "Programmieren im Großen" dem
+nicht so. Dementsprechend ist das "Programmieren im Großen" dem
 "Programmieren im Kleinen" ziemlich ähnlich.
 
 ## Spiel-Logik
 
-Als nächstes ist der architektonische Mittelbau der Architektur an der
-Reihe, die Spiellogik.  Ein Event-Storming produziert folgende
+Die Spiellogik bildet den Mittelbau der Architektur.  Ein "Event-Storming" liefert folgende
 Event-Klassen:
 
-* Karten wurden ausgeteilt.
+* Die Karten wurden ausgeteilt.
 * Eine neue Spielerin ist an der Reihe.
-* Eine Spielerin hat eine bestimmte Karte aufgenommen.
+* Eine Spielerin hat eine bestimmte Karte ausgespielt.
 * Eine Spielerin hat den Stich aufgenommen.
 * Eine Spielerin hat versucht, eine unzulässige Karte auszuspielen.
 * Das Spiel ist vorbei.
@@ -350,8 +350,8 @@ data GameEvent =
   deriving Show
 ```
 
-Der senkrechte Strich `|` zwischen den Klassen bedeutet "oder".  Das
-`HandsDealt`-Event trägt eine "Map" zwischen Spielernamen und ihren
+<!-- Der senkrechte Strich `|` zwischen den Klassen bedeutet "oder".   -->
+Das `HandsDealt`-Event trägt eine "Map" zwischen Spielernamen und ihren
 Karten mit sich.  Ein Verlauf des Spiels kann immer aus dessen Folge
 von Events rekonstruiert werden.
 
@@ -369,8 +369,8 @@ setzt das Spiel zu Beginn in Gang.  Die zweite repräsentiert den
 Versuch einer Spielerin, eine bestimmte Karte auszuspielen.
 
 Die Spielregeln werden durch die Verarbeitung von Commands zu Events
-implementiert.  Die Regeln beziehen sich ständig auf den *Zustand* des
-Spiels: welche Karten zulässig ausgespielt werden können, welche
+implementiert.  Die Regeln beziehen sich auf den *Zustand* des
+Spiels: welche Karten ausgespielt werden dürfen, welche
 Spielerin als nächstes dran ist etc.  Von diesem Zustand wird
 folgendes verlangt:
 
@@ -392,8 +392,8 @@ data GameState =
   deriving Show
 ```
 
-Die Liste im Feld `gameStatePlayers` wird dabei immer so umsortiert,
-dass die mächste Spielerin vorn steht.  Für die beiden Felder
+Die Liste im Feld `gameStatePlayers` wird dabei immer so rotiert,
+dass die nächste Spielerin vorn steht.  Für die beiden Felder
 `gameStateHands` und `gameStateStacks` müssen jeweils Karten *pro
 Spieler* vorgehalten werden, darum sind die dazugehörigen Typen
 Syonyme für Maps:
@@ -405,8 +405,8 @@ type PlayerHands  = Map PlayerName Hand
 
 Auch bei der Umsetzung der Spielregeln macht sich die funktionale
 Architektur bemerkbar:  Während des Spiels wird der Zustand nicht
-verändert, sondern es wird für jede Änderung ein neuer Zustand
-erzeugt.  Die zentrale Funktion für die Verarbeitung eines Commands
+verändert, sondern jede Änderung erzeugt einen neuen Zustand.  Die
+zentrale Funktion für die Verarbeitung eines Commands 
 hat deswegen folgende Signatur:
 
 ```haskell
@@ -417,7 +417,7 @@ Mit anderen Worten (Repräsentation des) Zustand vorher rein, Command
 rein, Tupel aus (Repräsentation des) neuem Zustand und Liste
 resultierender Events raus.  Hier ist die Implementierung der
 Gleichung für das `DealHands`-Command:
-  
+
 ```haskell
 processGameCommand state (DealHands hands) =
   let event = HandsDealt hands
@@ -434,7 +434,7 @@ Typsignatur ablesen lässt:
 processGameEvent :: GameState -> GameEvent -> GameState
 ```
 
-Die Kernlogik ist in der Gleichung für den `PlayCard`-Command. Diese
+Die Kernlogik ist in der Gleichung für das `PlayCard`-Command. Diese
 verlässt sich auf Hilfsfunktionen `playValid` (die einen Spielzug auf
 Korrektheit überprüft), `whoTakesTrick` (die berechnet, wer den Stich
 einziehen muss) und `gameOver` (die feststellt, ob das Spiel vorbei
@@ -467,9 +467,8 @@ processGameCommand state (PlayCard player card) =
     (state, [IllegalMove player, PlayerTurn player])
 ```
 
-Deutlich zu sehen ist, dass niemals der Zustand verändert wird und
-stattdessen die Zwischenzustände alles separate, voneinander
-unabhängige Objekte sind.
+Es ist deutlich zu sehen, dass der Zustand niemals verändert wird und
+dass alle Zwischenzustände separate, voneinander unabhängige Objekte sind.
 
 ## Zustand verwalten
 
@@ -484,25 +483,25 @@ sequenzielle Notation gedient.
 Sequenzieller Prozesse lassen sich gut durch *Monaden* beschreiben,
 ein typisch funktionales Architekturpattern.  Mit Monaden entstehen
 immer noch Funktionen, aber die Notation wechselt in eine sequenzielle
-Form, in der *Effekte* passieren dürfen.
+Form, die z.B. den Zustand automatisch weiterreicht.
 
 FIXME
 
 ## Fazit
 
-Funktionale Softwarearchitektur bedeutet erst einmal, dass man sich
-als Entwickler nicht so leicht verstecken kann: Nicht mal so eben
+Funktionale Softwarearchitektur bedeutet erst einmal, dass ein
+Entwickler nicht so leicht Architekturprinzipien verletzen kann: Nicht mal so eben
 schnell ein Attribut verändern oder - speziell in Haskell - externe
 Effekte auslösen, weil es gerade so passt.  Stattdessen führen neue
 Zustände immer gleich zu neuen Objekten und alle Effekte müssen
 explizit deklariert werden.  Das ist für Entwicklerinnen mit
 OO-Hintergrund erst einmal gewöhnungsbedürftig.  Diese Einschränkungen
-bringen aber Verbesserungen der Architekturqualität mit sich: Die
-Kopplung sinkt, die Abhänigkeiten werden weniger, deklarierte
-Effekte sind kontrollierte Effekte - das alles steiger Robustheit,
-Flexibilität und Wohlbefinden.
+bringen aber Verbesserungen der Architekturqualität mit sich: geringere
+Kopplung, weniger Abhängigkeiten, deklarierte und kontrollierte
+Effekte - das alles steigert die Robustheit, Flexibilität und
+Wartbarkeit des Codes.
 
-## Quellen
+<!-- ## Quellen (Fußnoten) -->
 
 [^1]: [`https://www.haskell.org/`](https://www.haskell.org)
 
@@ -540,5 +539,6 @@ Experten zur funktionalen Programmierung, der partiellen
 Auswertung, domänenspezifischen Sprachen und zahlreichen
 anderen Themen der Softwaretechnik.
 Seine aktuelle Forschung beschäftigt sich mit statischen und
-dynamischen Analysemethoden für JavaScript.
+dynamischen Analysemethoden für JavaScript sowie Typsystemen für
+Protokolle. 
 

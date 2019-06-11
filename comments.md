@@ -1,5 +1,10 @@
 # Kommentare
 
+## ein anderes Bild
+
+Ich hab pptx mal ein alternatives Bild skizziert. Leider sind meine pp
+Skills nicht so gut, aber vielleicht kannst du trotzdem was erkennen.
+
 ## Architektur
 
 Den Begriff "Softwarearchitektur" kann man auf zweierlei Art lesen
@@ -34,6 +39,23 @@ Das `deck` wird von Haskell folgendermaßen ausgedruckt:
  <50 weitere Karten>]
 ```
 
+## replaced
+
+
+Für die Abstraktionsfähigkeit in der funktionalen Sprache ist dies nur
+ein winziges Beispiel.  Sie potenziert aber ihre Fähigkeit im
+Zusammenhang mit den reinen Funktionen:
+
+## Bemerkung zum Ende vom "Modellieren"
+
+Manche Aspekte der Softwareentwicklung sind sprachübergreifend und
+gelten sowohl für objektorientierte als auch für funktionale
+Programmierung.  Ein Beispiel ist die Kapselung von
+Implementierungsdetails, zum Beispiel durch die Verwendung von
+abstrakten Datentypen. In funktionalen Sprachen ist die Gefahr eines
+Abstraktionsbruchs vielleicht sogar noch größer aufgrund des
+allgegenwärtigen Pattern-Matching. (Tritt bisher auch noch nicht im
+Code auf.)
 
 ## Kartenspiel modellieren
 
@@ -45,3 +67,22 @@ Der Abschnitt ist zu lang und könnte unterteilt werden.
 funktionalen Programmierung stehen auch andere leistungsfähige
 Patterns zur Verfügung wie fs2/conduit FIXME, deren Erläuterung aber mehr
 Vorlauf erfordern würde, als hier Platz zur Verfügung steht.)
+
+## GameEvent
+
+Anstelle von `HandsDealt (Map PlayerName Hand)` könnte man auch einen
+Event `HandDealt PlayerName Hand` vorsehen, der jedem Spieler einzeln
+seine `Hand` mitteilt. Das liefert einen Vorgeschmack von
+Event-Routing.
+
+## processGameCommand, processGameEvent
+
+Ich fände es sinnvoll, die Argumente zu vertauschen, so dass jeweils
+das `GameCommand` bzw das `GameEvent` der erste Parameter ist. Passt
+dann auch genau zur State-Monade.
+
+Beim `processGameCommand` ist auch komisch, dass der
+`processGameEvent` sofort ausgeführt wird, während der Rest der Welt
+verzögert informiert wird. Logisch wäre es, wenn der
+`processGameEvent` genauso am Event-Strom lauschen müsste wie alle
+anderen Komponenten des Spiels. 
