@@ -505,9 +505,9 @@ Wartbarkeit des Codes.
 
 [^1]: [`https://www.haskell.org/`](https://www.haskell.org)
 
-[^2]: Michael Sperber, Herbert Klaeren: *Schreibe Dein Programm!*, [`https://www.deinprogramm.de`](https://www.deinprogramm.de)
+[^2]: Michael Sperber, Herbert Klaeren: *Schreibe Dein Programm!*, [`https://www.deinprogramm.de`](https://www.deinprogramm.de/)
 
-[^3]: Hutton, Graham: *Programming in Haskell*, FIXME
+[^3]: Hutton, Graham: *Programming in Haskell*, 2nd edition, 2016.
 
 [^4]: Hearts auf Wikipedia, [`https://en.wikipedia.org/wiki/Hearts_(card_game)`](https://en.wikipedia.org/wiki/Hearts_(card_game))
 
