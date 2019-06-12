@@ -1,3 +1,6 @@
+---
+lang: de
+...
 # Funktionale Softwarearchitektur
 
 #### Michael Sperber, Active Group GmbH; Peter Thiemann, Universität Freiburg
@@ -468,7 +471,7 @@ dass alle Zwischenzustände separate, voneinander unabhängige Objekte sind.
 
 ## Zustand verwalten
 
-Die Funktion `processCommand` bildet die Abfolge von Zuständen durch
+Die Funktion `processGameCommand` bildet die Abfolge von Zuständen durch
 unterschiedliche Variablen und die Abhängigkeiten dazwischen ab.  Das
 ist in vielen Situationen gerade richtig, hier aber unnötig
 fehleranfällig - wenn zum Beispiel irgendwo statt `state3` mal
@@ -477,9 +480,94 @@ sequenziellen Prozess abbildet, und dem wäre besser durch eine
 sequenzielle Notation gedient.
 
 Sequenzieller Prozesse lassen sich gut durch *Monaden* beschreiben,
-ein typisch funktionales Architekturpattern.  Mit Monaden entstehen
+ein typisch funktionales Architekturmuster.  Mit Monaden entstehen
 immer noch Funktionen, aber die Notation wechselt in eine sequenzielle
 Form, die z.B. den Zustand automatisch weiterreicht.
+
+In monadischer Form lässt sich die Funktion für `PlayCard` wie folgt
+hinschreiben:
+
+```haskell
+processGameCommandM'' :: GameConstraints m => GameCommand -> m ()
+processGameCommandM'' (PlayCard playerName card) =
+  ifM (playValidM playerName card) (do
+     processAndPublishEvent (CardPlayed playerName card)
+     ifM turnOverM (do
+       trick <- currentTrickM
+       let trickTaker = whoTakesTrick trick
+       processAndPublishEvent (TrickTaken trickTaker trick)
+       ifM gameOverM
+         (processAndPublishEvent (GameOver))
+         (processAndPublishEvent (PlayerTurn trickTaker)))
+      (do                     -- not turnOver
+       nextPlayer <- nextPlayerM
+       processAndPublishEvent (PlayerTurn nextPlayer)))
+  (do                        -- not playValid
+    nextPlayer <- nextPlayerM
+    processAndPublishEvent (IllegalMove nextPlayer)
+    processAndPublishEvent (PlayerTurn nextPlayer))
+```
+
+Die monadische Form beschreibt eine Abfolge von Aktionen, die
+vom Ergebnis vorangegangener Aktionen abhängen dürfen. Diese Aktionen
+werden in einer Monade `m`interpretiert, die verschiedene Features
+haben kann. Im vorliegenden Beispiel werden diese Features durch
+`GameConstraints m` angegeben; die Funktion selbst erwartet wie gehabt
+ein `GameCommand` und liefert eine Aktion vom Typ `m ()`. Dabei ist
+`m`eine Monade, aber der Typ gibt keine konkrete Implementierung vor,
+sondern gibt nur die Features von `m` an, die `processGameCommand`
+verwenden darf. In unserem Fall sind das zwei Features:
+
+```haskell
+type GameConstraints m = (MonadState GameState m, MonadWriter [GameEvent] m)
+```
+
+Der Zustandsanteil `MonadState` sorgt dafür, dass der aktuelle
+`GameState` jeder Aktion zur Verfügung steht und durch sie geändert
+werden darf. Über den Ausgabeanteil `MonadWriter` kann eine Aktion
+`GameEvent`s an den Kontext schicken.
+
+Da der Zustand nicht mehr explizit herumgereicht wird, muss sich eine
+Aktion wie `playValidM` den aktuellen `GameState` besorgen:
+
+```haskell
+playValidM :: MonadState GameState m => PlayerName -> Card -> m Bool
+playValidM playerName card = do
+  state <- State.get
+  return (playValid state playerName card)
+```
+
+Offenbar hat `playValidM` noch weniger Anforderungen, denn es verlangt
+nur den Zustandsanteil.
+Dabei bewirkt das `do`, dass die folgenden Aktionen hintereinander
+ausgeführt werden. Die Aktion `state <- State.get` besorgt den aktuellen
+Zustand, der für die folgenden Aktionen in der Variable `state` zur
+Verfügung steht. Die verbleibende `return` Aktion gibt den Zustand
+unverändert weiter und liefert als Ergebnis den Wert von `playValid`. 
+
+Auf die gleiche Art und Weise funktionieren auch die Aktionen `turnOverM`, `currentTrickM`,
+`gameOverM` und `nextPlayerM`. Die Funktion `ifM` funktioniert wie
+`if`, nur in einer Monade: Das erste Argument muss ein `Bool` liefern,
+daher hat es den Typ `m Bool`. Das zweite und dritte ("then" und
+"else") Argument hat jeweils den Typ `m a`, also die gleiche Monade
+mit dem gleichen Rückgabetyp `a`.
+
+Zum Schluss müssen wir noch die Events lokal verarbeiten und verschicken:
+
+```haskell
+processAndPublishEvent :: GameConstraints m => GameEvent -> m ()
+processAndPublishEvent gameEvent = do
+  State.modify (\state -> processGameEvent state gameEvent)
+  Writer.tell [gameEvent]
+```
+  
+Dafür wenden wir die vorher besprochene Funktion `processGameEvent`
+auf Zustand und Event an. Die Aktion `State.modify` besorgt den
+Zustand aus der Monade, übergibt ihn zur Änderung an
+`processGameEvent` und legt ihn wieder in die Monade zurück.
+Dann wird der Event an die Spieler kommuniziert. Die Aktion
+`Writer.tell` verwendert dafür den Ausgabeanteil der Monade. Aus
+technischen Gründen muss der Event in eine Liste verpackt werden.
 
 ### Peter's code, minimal set
 
@@ -594,7 +682,6 @@ playCommand :: Monad monad => Players monad GameEvent GameCommand -> GameCommand
 
 playGame :: Monad monad => Players monad GameEvent GameCommand -> [Card] -> GameEventSourcingT monad ()
 ```
-
 
 ## Fazit
 
