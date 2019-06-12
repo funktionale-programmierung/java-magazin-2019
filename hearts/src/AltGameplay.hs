@@ -24,15 +24,15 @@ import Game hiding (processGameCommandM, processGameEvent, playerProcessGameEven
 import qualified Shuffle
 
 -- different
-type StrategyConstraints m = (HasPlayerState m, MonadIO m)
+type StrategyInterface m = (HasPlayerState m, MonadIO m)
 
 data PlayerStrategy
-  = PlayerStrategy (forall m . StrategyConstraints m => m Card)
+  = PlayerStrategy (forall m . StrategyInterface m => m Card)
 
-type PlayerConstraints m = (MonadIO m, MonadWriter [GameCommand] m)
+type PlayerInterface m = (MonadIO m, MonadWriter [GameCommand] m)
 
 data PlayerEventProcessor =
-  PlayerEventProcessor (forall m . PlayerConstraints m =>
+  PlayerEventProcessor (forall m . PlayerInterface m =>
                          GameEvent -> m PlayerEventProcessor)
 
 data PlayerPackage = 
@@ -44,7 +44,7 @@ data PlayerPackage =
 data PlayerPackage' = 
   PlayerPackage'
   { playerName' :: PlayerName
-  , eventProcessor' :: forall m . PlayerConstraints m => GameEvent -> m PlayerPackage'
+  , eventProcessor' :: forall m . PlayerInterface m => GameEvent -> m PlayerPackage'
   }
 
 -- main entry point
@@ -60,11 +60,11 @@ runGame' players = do
 
 type HasGameState m = MonadState GameState m
 
-type GameConstraints m = (MonadState GameState m, MonadWriter [GameEvent] m)
+type GameInterface m = (MonadState GameState m, MonadWriter [GameEvent] m)
 
-type ControllerConstraints m = (MonadIO m, MonadState GameState m)
+type ControllerInterface m = (MonadIO m, MonadState GameState m)
 
-startController :: ControllerConstraints m => [PlayerPackage] -> m ()
+startController :: ControllerInterface m => [PlayerPackage] -> m ()
 startController players = do
   -- setup game state
   let playerNames = map playerName players
@@ -75,7 +75,7 @@ startController players = do
   let hands = Map.fromList (zip playerNames (map Set.fromList (Shuffle.distribute (length playerNames) shuffledCards)))
   gameController players [DealHands hands]
 
-startController' :: ControllerConstraints m => [PlayerPackage'] -> m ()
+startController' :: ControllerInterface m => [PlayerPackage'] -> m ()
 startController' players = do
   -- setup game state
   let playerNames = map playerName' players
@@ -109,14 +109,14 @@ gameOverM :: HasGameState m => m Bool
 gameOverM =
   fmap gameOver State.get
 
-runPlayer' :: PlayerConstraints m => PlayerPackage' -> GameEvent -> m PlayerPackage'
+runPlayer' :: PlayerInterface m => PlayerPackage' -> GameEvent -> m PlayerPackage'
 runPlayer' (PlayerPackage' p f) gameEvent = f gameEvent
 
-runPlayer :: PlayerConstraints m => PlayerEventProcessor -> GameEvent -> m PlayerEventProcessor
+runPlayer :: PlayerInterface m => PlayerEventProcessor -> GameEvent -> m PlayerEventProcessor
 runPlayer (PlayerEventProcessor f) gameEvent =
   f gameEvent
 
-announceEvent :: ControllerConstraints m => GameEvent -> m ()
+announceEvent :: ControllerInterface m => GameEvent -> m ()
 announceEvent (PlayerTurn playerName) =
   liftIO $ putStrLn ("Your turn, " ++ playerName ++ "!")
 announceEvent (CardPlayed playerName card) =
@@ -145,7 +145,7 @@ announceEvent (GameOver) = do
 announceEvent gameEvent =
   liftIO $ putStrLn (show gameEvent)
 
-gameController :: ControllerConstraints m => [PlayerPackage] -> [GameCommand] -> m ()
+gameController :: ControllerInterface m => [PlayerPackage] -> [GameCommand] -> m ()
 gameController players commands = do
   -- traceM ("** INCOMING COMMANDS " ++ show commands) 
   (_, events) <- Writer.runWriterT $ mapM_ processGameCommandM' commands
@@ -160,7 +160,7 @@ gameController players commands = do
   unless (null commands') $
     gameController players' commands'
 
-gameController' :: ControllerConstraints m => [PlayerPackage'] -> [GameCommand] -> m ()
+gameController' :: ControllerInterface m => [PlayerPackage'] -> [GameCommand] -> m ()
 gameController' players commands = do
   -- traceM ("** INCOMING COMMANDS " ++ show commands) 
   (_, events) <- Writer.runWriterT $ mapM_ processGameCommandM' commands
@@ -173,7 +173,7 @@ gameController' players commands = do
   unless (null commands') $
     gameController' players' commands'
 
-processGameCommandM :: GameConstraints m => GameCommand -> m ()
+processGameCommandM :: GameInterface m => GameCommand -> m ()
 processGameCommandM command =
   do gameState <- State.get
      let (gameState', events) = processGameCommand command gameState
@@ -181,7 +181,7 @@ processGameCommandM command =
      Writer.tell events
 
 -- directly monadic version
-processGameCommandM' :: GameConstraints m => GameCommand -> m ()
+processGameCommandM' :: GameInterface m => GameCommand -> m ()
 processGameCommandM' (DealHands playerHands) =
    processAndPublishEvent (HandsDealt playerHands)
 processGameCommandM' (PlayCard playerName card) =
@@ -208,7 +208,7 @@ processGameCommandM' (PlayCard playerName card) =
 elseM = id
 
 -- fully monadicized version
-processGameCommandM'' :: GameConstraints m => GameCommand -> m ()
+processGameCommandM'' :: GameInterface m => GameCommand -> m ()
 processGameCommandM'' (DealHands playerHands) =
   processAndPublishEvent (HandsDealt playerHands)
 processGameCommandM'' (PlayCard playerName card) =
@@ -230,12 +230,12 @@ processGameCommandM'' (PlayCard playerName card) =
     processAndPublishEvent (PlayerTurn nextPlayer))
 
 
-processAndPublishEvent :: GameConstraints m => GameEvent -> m ()
+processAndPublishEvent :: GameInterface m => GameEvent -> m ()
 processAndPublishEvent gameEvent = do
   processGameEventM gameEvent
   Writer.tell [gameEvent]
 
-processGameEventM :: GameConstraints m => GameEvent -> m ()
+processGameEventM :: GameInterface m => GameEvent -> m ()
 processGameEventM (HandsDealt playerHands) =
   State.modify (\state -> state { gameStateHands = playerHands })
   -- no good to broadcast this event as everybody knows everybody else's hand
@@ -271,7 +271,7 @@ modifyHand  f = State.modify (\playerState -> playerState { playerHand = f (play
 modifyTrick f = State.modify (\playerState -> playerState { playerTrick = f (playerTrick playerState)})
 modifyStack f = State.modify (\playerState -> playerState { playerStack = f (playerStack playerState)})
 
-playerProcessGameEvent :: (HasPlayerState m, PlayerConstraints m) => PlayerName -> GameEvent -> m ()
+playerProcessGameEvent :: (HasPlayerState m, PlayerInterface m) => PlayerName -> GameEvent -> m ()
 playerProcessGameEvent playerName gameEvent = do
   case gameEvent of
     HandsDealt hands ->
