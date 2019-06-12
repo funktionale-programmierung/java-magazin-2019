@@ -144,7 +144,7 @@ processGameCommandM command =
 -- directly monadic version
 processGameCommandM' :: GameConstraints m => GameCommand -> m ()
 processGameCommandM' (DealHands playerHands) =
-      processAndPublishEvent (HandsDealt playerHands)
+   processAndPublishEvent (HandsDealt playerHands)
 processGameCommandM' (PlayCard playerName card) =
    do playIsValid <- playValidM playerName card
       if playIsValid then
@@ -168,15 +168,15 @@ processGameCommandM' (PlayCard playerName card) =
 
 processAndPublishEvent :: GameConstraints m => GameEvent -> m ()
 processAndPublishEvent gameEvent = do
-  processGameEvent gameEvent
+  processGameEventM gameEvent
   Writer.tell [gameEvent]
 
-processGameEvent :: MonadState GameState monad => GameEvent -> monad ()
-processGameEvent (HandsDealt playerHands) =
+processGameEventM :: GameConstraints m => GameEvent -> m ()
+processGameEventM (HandsDealt playerHands) =
   State.modify (\state -> state { gameStateHands = playerHands })
   -- no good to broadcast this event as everybody knows everybody else's hand
 
-processGameEvent (CardPlayed playerName card) =
+processGameEventM (CardPlayed playerName card) =
   State.modify (\state ->
                    state { gameStatePlayers = rotate (rotateTo playerName (gameStatePlayers state)),
                            gameStateHands   = takeCard (gameStateHands state) playerName card,
@@ -184,18 +184,18 @@ processGameEvent (CardPlayed playerName card) =
                            gameStateTrick   = addToTrick playerName card (gameStateTrick state)
                          })
 
-processGameEvent (PlayerTurn playerName) = 
+processGameEventM (PlayerTurn playerName) = 
   State.modify (\state -> state { gameStatePlayers = rotateTo playerName (gameStatePlayers state) })
 
-processGameEvent (TrickTaken playerName trick) =
+processGameEventM (TrickTaken playerName trick) =
   State.modify (\state -> state { gameStateStacks = (addToStack (gameStateStacks state) playerName (cardsOfTrick trick)),
                                   gameStateTrick = emptyTrick
                                 })
 
-processGameEvent (IllegalMove playerName) =
+processGameEventM (IllegalMove playerName) =
   return ()
 
-processGameEvent (GameOver) =
+processGameEventM (GameOver) =
   return ()
 
 --------------------------------------------------------------------------------
