@@ -3,6 +3,7 @@
 {-# LANGUAGE ConstraintKinds #-}
 module AltGameplay where
 
+import Control.Conditional (ifM)
 import qualified Control.Monad.Writer (WriterT)
 import Control.Monad.Writer as Writer
   
@@ -48,7 +49,7 @@ runGame players = do
 
 type HasGameState m = MonadState GameState m
 
-type GameConstraints m = (MonadIO m, MonadState GameState m, MonadWriter [GameEvent] m)
+type GameConstraints m = (MonadState GameState m, MonadWriter [GameEvent] m)
 
 type ControllerConstraints m = (MonadIO m, MonadState GameState m)
 
@@ -165,6 +166,31 @@ processGameCommandM' (PlayCard playerName card) =
           nextPlayer <- nextPlayerM
           processAndPublishEvent (IllegalMove nextPlayer)
           processAndPublishEvent (PlayerTurn nextPlayer)
+
+elseM = id
+
+-- fully monadicized version
+processGameCommandM'' :: GameConstraints m => GameCommand -> m ()
+processGameCommandM'' (DealHands playerHands) =
+  processAndPublishEvent (HandsDealt playerHands)
+processGameCommandM'' (PlayCard playerName card) =
+  ifM (playValidM playerName card) (do
+     processAndPublishEvent (CardPlayed playerName card)
+     ifM turnOverM (do
+       trick <- currentTrickM
+       let trickTaker = whoTakesTrick trick
+       processAndPublishEvent (TrickTaken trickTaker trick)
+       ifM gameOverM
+         (processAndPublishEvent (GameOver))
+         (processAndPublishEvent (PlayerTurn trickTaker)))
+      (do                     -- not turnOver
+       nextPlayer <- nextPlayerM
+       processAndPublishEvent (PlayerTurn nextPlayer)))
+  (do                        -- not playValid
+    nextPlayer <- nextPlayerM
+    processAndPublishEvent (IllegalMove nextPlayer)
+    processAndPublishEvent (PlayerTurn nextPlayer))
+
 
 processAndPublishEvent :: GameConstraints m => GameEvent -> m ()
 processAndPublishEvent gameEvent = do
