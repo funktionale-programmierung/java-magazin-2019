@@ -6,7 +6,7 @@
 module GameplayT where
 
 import qualified Control.Monad.State.Lazy as State
-import Control.Monad.State.Lazy (State, StateT)
+import Control.Monad.State.Lazy (State, StateT, MonadState)
 import Control.Monad.Trans.Class
 
 import qualified Control.Monad.Writer (WriterT)
@@ -41,9 +41,6 @@ import Debug.Trace (trace)
 class MonadTrans monadT => Player player monadT event command | player -> monadT, player -> event, player -> command where
   play :: Monad monad => player -> event -> (monadT monad) [command]
 
-class Monad monad => Player' player monad event command | player -> monad, player -> event, player -> command where
-  play' :: player -> event ->  monad [command]
-
 type EventProcessor monad event command = event -> monad [command]
 
 type Players monad event command = Map PlayerName (EventProcessor monad event command)
@@ -56,25 +53,17 @@ addPlayer players playerName player =
   let liftProcessor processor = \ event -> lift (processor event)
   in Map.insert playerName (play player) (Map.map liftProcessor players)
 
-addPlayer' :: Player' player monad event command =>  Players monad event command -> PlayerName -> player -> Players monad event command
-addPlayer' players playerName player' =
-  Map.insert playerName (play' player') players
-  
 class MonadTrans monadT => Strategy strategy monadT | strategy -> monadT  where
   chooseCard :: Monad monad => strategy -> PlayerName -> PlayerState -> (monadT monad) Card
 
-class Monad monad => Strategy' strategy monad | strategy -> monad  where
-  chooseCard' :: Monad monad => strategy -> PlayerName -> PlayerState -> monad Card
-
-playerProcessGameEventM :: State.MonadState PlayerState monad => PlayerName -> GameEvent -> monad ()
+playerProcessGameEventM :: MonadState PlayerState monad => PlayerName -> GameEvent -> monad ()
 playerProcessGameEventM playerName event =
   do playerState <- State.get
      let playerState' = playerProcessGameEvent playerName event playerState
      State.put playerState'
 
--- FIXME: any point to this - i.e. any point not shortening monadT monad -> monad
 strategyPlay
-  :: (State.MonadState PlayerState (monadT monad),
+  :: (MonadState PlayerState (monadT monad),
       Strategy strategy monadT, Monad monad,
       Monad (monadT monad)) =>
      strategy -> PlayerName -> GameEvent -> monadT monad [GameCommand]
@@ -93,32 +82,6 @@ strategyPlay strategy playerName event =
          else return []
        CardPlayed name' card -> return []
        TrickTaken name' trick -> return []
-
-strategyPlay'
-  :: (State.MonadState PlayerState m, Strategy' strategy m) =>
-     strategy -> PlayerName -> GameEvent -> m [GameCommand]
-strategyPlay' strategy' playerName event =
-  do playerProcessGameEventM playerName event
-     playerState <- State.get
-     case event of
-       HandsDealt hands ->
-         if containsCard twoOfClubs (playerHand playerState)
-         then return [PlayCard playerName twoOfClubs]
-         else return []
-       PlayerTurn name' ->
-         if playerName == name'
-         then do card <- chooseCard' strategy' playerName playerState
-                 return [PlayCard playerName card]
-         else return []
-       CardPlayed name' card -> return []
-       TrickTaken name' trick -> return []
-
-
-{-
-do playerState <- State.get
-      card <- chooseCard' strategy' playerName playerState
-      return [PlayCard playerName card]
--}
 
 type EventSourcingT state event monad = StateT state (WriterT [event] monad)
 
