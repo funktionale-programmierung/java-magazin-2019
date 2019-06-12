@@ -143,6 +143,30 @@ nextPlayerM =
   do state <- eventSourcingReadStateM
      return (nextPlayer state)
 
+processGameCommandM :: Monad monad => GameCommand -> GameEventSourcingT monad ()
+processGameCommandM (DealHands playerHands) =
+   processGameEventM (HandsDealt playerHands)
+processGameCommandM (PlayCard playerName card) =
+   do playIsValid <- playValidM playerName card
+      if playIsValid then
+        do processGameEventM (CardPlayed playerName card)
+           turnIsOver <- turnOverM
+           if turnIsOver then
+             do trick <- currentTrickM
+                let trickTaker = whoTakesTrick trick
+                processGameEventM (TrickTaken trickTaker trick)
+                gameIsOver <- gameOverM
+                if gameIsOver 
+                then processGameEventM (GameOver)
+                else processGameEventM (PlayerTurn trickTaker)
+           else
+             do nextPlayer <- nextPlayerM
+                processGameEventM (PlayerTurn nextPlayer)
+      else
+        do nextPlayer <- nextPlayerM
+           processGameEventM (IllegalMove nextPlayer)
+           processGameEventM (PlayerTurn nextPlayer)
+
 gameCommandEventsM :: Monad monad => GameCommand -> GameEventSourcingT monad [GameEvent]
 gameCommandEventsM gameCommand | trace ("gameCommandsEventsM " ++ show gameCommand) False = undefined
 gameCommandEventsM gameCommand =
