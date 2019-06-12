@@ -481,7 +481,120 @@ ein typisch funktionales Architekturpattern.  Mit Monaden entstehen
 immer noch Funktionen, aber die Notation wechselt in eine sequenzielle
 Form, die z.B. den Zustand automatisch weiterreicht.
 
-FIXME
+### Peter's code, minimal set
+
+```haskell
+type GameConstraints m = (MonadIO m, MonadState GameState m, MonadWriter [GameEvent] m)
+```
+
+```haskell
+processGameCommandM' :: GameConstraints m => GameCommand -> m ()
+processGameCommandM' (DealHands playerHands) =
+   processAndPublishEvent (HandsDealt playerHands)
+processGameCommandM' (PlayCard playerName card) =
+   do playIsValid <- playValidM playerName card
+      if playIsValid then
+        do processAndPublishEvent (CardPlayed playerName card)
+           turnIsOver <- turnOverM
+           if turnIsOver then
+             do trick <- currentTrickM
+                let trickTaker = whoTakesTrick trick
+                processAndPublishEvent (TrickTaken trickTaker trick)
+                gameIsOver <- gameOverM
+                if gameIsOver 
+                then processAndPublishEvent (GameOver)
+                else processAndPublishEvent (PlayerTurn trickTaker)
+           else
+             do nextPlayer <- nextPlayerM
+                processAndPublishEvent (PlayerTurn nextPlayer)
+      else
+        do nextPlayer <- nextPlayerM
+           processAndPublishEvent (IllegalMove nextPlayer)
+           processAndPublishEvent (PlayerTurn nextPlayer)
+```
+
+```haskell
+processAndPublishEvent :: GameConstraints m => GameEvent -> m ()
+processAndPublishEvent gameEvent = do
+  processGameEventM gameEvent
+  Writer.tell [gameEvent]
+```
+
+```haskell
+processGameEvent :: GameConstraints m => GameEvent -> m ()
+```
+
+```haskell
+type PlayerConstraints m = (MonadIO m, MonadWriter [GameCommand] m)
+```
+
+```haskell
+data PlayerCommandProcessor =
+  PlayerCommandProcessor (forall m . PlayerConstraints m =>
+                         GameEvent -> m PlayerCommandProcessor)
+
+data PlayerPackage = 
+  PlayerPackage
+  { playerName :: PlayerName
+  , commandProcessor :: PlayerCommandProcessor
+  }
+
+runPlayer :: PlayerConstraints m => PlayerCommandProcessor -> GameEvent -> m PlayerCommandProcessor
+runPlayer (PlayerCommandProcessor f) gameEvent =
+  f gameEvent
+```
+
+### Mike's code, minimal set
+
+```haskell
+processGameCommandM :: MonadGameEventSourcing monad => GameCommand -> monad ()
+processGameCommandM (DealHands playerHands) =
+   processGameEventM (HandsDealt playerHands)
+processGameCommandM (PlayCard playerName card) =
+   do playIsValid <- playValidM playerName card
+      if playIsValid then
+        do processGameEventM (CardPlayed playerName card)
+           turnIsOver <- turnOverM
+           if turnIsOver then
+             do trick <- currentTrickM
+                let trickTaker = whoTakesTrick trick
+                processGameEventM (TrickTaken trickTaker trick)
+                gameIsOver <- gameOverM
+                if gameIsOver 
+                then processGameEventM (GameOver)
+                else processGameEventM (PlayerTurn trickTaker)
+           else
+             do nextPlayer <- nextPlayerM
+                processGameEventM (PlayerTurn nextPlayer)
+      else
+        do nextPlayer <- nextPlayerM
+           processGameEventM (IllegalMove nextPlayer)
+           processGameEventM (PlayerTurn nextPlayer)
+```
+
+```haskell
+class MonadTrans monadT => Player player monadT event command | player -> monadT, player -> event, player -> command where
+  play :: Monad monad => player -> EventProcessor (monadT monad) event command
+
+type EventProcessor monad event command = event -> monad [command]
+```
+
+```haskell
+type EventSourcingT state event monad = StateT state (WriterT [event] monad)
+type MonadEventSourcing state event monad =
+  (MonadState state monad, MonadWriter [event] monad)
+```
+
+```haskell
+type Players monad event command = Map PlayerName (EventProcessor monad event command)
+
+playEvent :: Monad monad => Players monad GameEvent GameCommand -> GameEvent -> monad (Seq GameCommand)
+
+playCommand :: Monad monad => Players monad GameEvent GameCommand -> GameCommand -> GameEventSourcingT monad ()
+
+playGame :: Monad monad => Players monad GameEvent GameCommand -> [Card] -> GameEventSourcingT monad ()
+```
+
 
 ## Fazit
 
