@@ -1,12 +1,14 @@
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE RankNTypes #-}
 
 module GameplayT where
 
 import qualified Control.Monad.State.Lazy as State
-import Control.Monad.State.Lazy (State, StateT)
+import Control.Monad.State.Lazy (State, StateT, MonadState)
 import Control.Monad.Trans.Class
 
 import qualified Control.Monad.Writer (WriterT)
@@ -41,9 +43,6 @@ import Debug.Trace (trace)
 class MonadTrans monadT => Player player monadT event command | player -> monadT, player -> event, player -> command where
   play :: Monad monad => player -> event -> (monadT monad) [command]
 
-class Monad monad => Player' player monad event command | player -> monad, player -> event, player -> command where
-  play' :: player -> event ->  monad [command]
-
 type EventProcessor monad event command = event -> monad [command]
 
 type Players monad event command = Map PlayerName (EventProcessor monad event command)
@@ -56,25 +55,17 @@ addPlayer players playerName player =
   let liftProcessor processor = \ event -> lift (processor event)
   in Map.insert playerName (play player) (Map.map liftProcessor players)
 
-addPlayer' :: Player' player monad event command =>  Players monad event command -> PlayerName -> player -> Players monad event command
-addPlayer' players playerName player' =
-  Map.insert playerName (play' player') players
-  
 class MonadTrans monadT => Strategy strategy monadT | strategy -> monadT  where
   chooseCard :: Monad monad => strategy -> PlayerName -> PlayerState -> (monadT monad) Card
 
-class Monad monad => Strategy' strategy monad | strategy -> monad  where
-  chooseCard' :: Monad monad => strategy -> PlayerName -> PlayerState -> monad Card
-
-playerProcessGameEventM :: State.MonadState PlayerState monad => PlayerName -> GameEvent -> monad ()
+playerProcessGameEventM :: MonadState PlayerState monad => PlayerName -> GameEvent -> monad ()
 playerProcessGameEventM playerName event =
   do playerState <- State.get
-     let playerState' = playerProcessGameEvent playerName playerState event
+     let playerState' = playerProcessGameEvent playerName event playerState
      State.put playerState'
 
--- FIXME: any point to this - i.e. any point not shortening monadT monad -> monad
 strategyPlay
-  :: (State.MonadState PlayerState (monadT monad),
+  :: (MonadState PlayerState (monadT monad),
       Strategy strategy monadT, Monad monad,
       Monad (monadT monad)) =>
      strategy -> PlayerName -> GameEvent -> monadT monad [GameCommand]
@@ -94,97 +85,102 @@ strategyPlay strategy playerName event =
        CardPlayed name' card -> return []
        TrickTaken name' trick -> return []
 
-strategyPlay'
-  :: (State.MonadState PlayerState m, Strategy' strategy m) =>
-     strategy -> PlayerName -> GameEvent -> m [GameCommand]
-strategyPlay' strategy' playerName event =
-  do playerProcessGameEventM playerName event
-     playerState <- State.get
-     case event of
-       HandsDealt hands ->
-         if containsCard twoOfClubs (playerHand playerState)
-         then return [PlayCard playerName twoOfClubs]
-         else return []
-       PlayerTurn name' ->
-         if playerName == name'
-         then do card <- chooseCard' strategy' playerName playerState
-                 return [PlayCard playerName card]
-         else return []
-       CardPlayed name' card -> return []
-       TrickTaken name' trick -> return []
-
-
-{-
-do playerState <- State.get
-      card <- chooseCard' strategy' playerName playerState
-      return [PlayCard playerName card]
--}
-
 type EventSourcingT state event monad = StateT state (WriterT [event] monad)
+type MonadEventSourcing state event monad =
+  (MonadState state monad, MonadWriter [event] monad)
 
+runEventSourcing :: (forall monad . MonadEventSourcing state event monad => monad ()) -> state -> (state, [event])
+runEventSourcing action state =
+  Writer.runWriter (State.execStateT action state)
+
+type MonadGameEventSourcing monad = MonadEventSourcing GameState GameEvent monad
 type GameEventSourcingT monad = EventSourcingT GameState GameEvent monad
 
-eventSourcingReadStateM :: Monad monad => EventSourcingT state event monad state
+eventSourcingReadStateM :: MonadEventSourcing state event monad => monad state
 eventSourcingReadStateM = State.get
 
-playerHandM :: Monad monad => PlayerName -> GameEventSourcingT monad Hand
+playerHandM :: MonadGameEventSourcing monad => PlayerName -> monad Hand
 playerHandM playerName =
   do state <- eventSourcingReadStateM
      return (gameStateHands state Map.! playerName)
 
-playerStackM :: Monad monad => PlayerName -> GameEventSourcingT monad (Set Card)
+playerStackM :: MonadGameEventSourcing monad => PlayerName -> monad (Set Card)
 playerStackM player =
   do state <- eventSourcingReadStateM
      return (gameStateStacks state Map.! player)
 
-trickM :: Monad monad => GameEventSourcingT monad Trick
+trickM :: MonadGameEventSourcing monad => monad Trick
 trickM =
   do state <- eventSourcingReadStateM
      return (gameStateTrick state)
 
-processGameEventM :: Monad monad => GameEvent -> GameEventSourcingT monad ()
+processGameEventM :: MonadGameEventSourcing monad => GameEvent -> monad ()
 processGameEventM event =
   do gameState <- State.get
-     State.put (processGameEvent gameState event)
+     State.put (processGameEvent event gameState)
      Writer.tell [event]
      return ()
 
-whoTakesTrickM :: Monad monad => GameEventSourcingT monad (PlayerName, Trick)
+whoTakesTrickM :: MonadGameEventSourcing monad => monad (PlayerName, Trick)
 whoTakesTrickM = do
   state <- eventSourcingReadStateM
   let trick = gameStateTrick state
   return (whoTakesTrick trick, trick)
 
-turnOverM :: Monad monad => GameEventSourcingT monad Bool
+turnOverM :: MonadGameEventSourcing monad => monad Bool
 turnOverM = do
   state <- eventSourcingReadStateM
   return (turnOver state)
 
-gameOverM :: Monad monad => GameEventSourcingT monad Bool
+gameOverM :: MonadGameEventSourcing monad => monad Bool
 gameOverM = do
   state <- eventSourcingReadStateM
   return (gameOver state)
 
-playValidM :: Monad monad => PlayerName -> Card -> GameEventSourcingT monad Bool
+playValidM :: MonadGameEventSourcing monad => PlayerName -> Card -> monad Bool
 playValidM playerName card  =
   do state <- eventSourcingReadStateM
      return (playValid state playerName card)
 
-currentTrickM :: Monad monad => GameEventSourcingT monad Trick
+currentTrickM :: MonadGameEventSourcing monad => monad Trick
 currentTrickM =
   do state <- eventSourcingReadStateM
      return (gameStateTrick state)
 
-nextPlayerM :: Monad monad => GameEventSourcingT monad (PlayerName)
+nextPlayerM :: MonadGameEventSourcing monad => monad (PlayerName)
 nextPlayerM =
   do state <- eventSourcingReadStateM
      return (nextPlayer state)
 
-gameCommandEventsM :: Monad monad => GameCommand -> GameEventSourcingT monad [GameEvent]
+processGameCommandM :: MonadGameEventSourcing monad => GameCommand -> monad ()
+processGameCommandM (DealHands playerHands) =
+   processGameEventM (HandsDealt playerHands)
+processGameCommandM (PlayCard playerName card) =
+   do playIsValid <- playValidM playerName card
+      if playIsValid then
+        do processGameEventM (CardPlayed playerName card)
+           turnIsOver <- turnOverM
+           if turnIsOver then
+             do trick <- currentTrickM
+                let trickTaker = whoTakesTrick trick
+                processGameEventM (TrickTaken trickTaker trick)
+                gameIsOver <- gameOverM
+                if gameIsOver 
+                then processGameEventM (GameOver)
+                else processGameEventM (PlayerTurn trickTaker)
+           else
+             do nextPlayer <- nextPlayerM
+                processGameEventM (PlayerTurn nextPlayer)
+      else
+        do nextPlayer <- nextPlayerM
+           processGameEventM (IllegalMove nextPlayer)
+           processGameEventM (PlayerTurn nextPlayer)
+
+gameCommandEventsM :: MonadGameEventSourcing monad => GameCommand -> monad [GameEvent]
 gameCommandEventsM gameCommand | trace ("gameCommandsEventsM " ++ show gameCommand) False = undefined
 gameCommandEventsM gameCommand =
   do gameState <- eventSourcingReadStateM
-     let (gameState', gameEvents) = processGameCommand gameState gameCommand
+     let (gameState', gameEvents) = runEventSourcing (processGameCommandM gameCommand) gameState
      mapM_ processGameEventM gameEvents
      return (trace ("gameEvents " ++ show gameEvents) gameEvents)
 
