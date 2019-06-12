@@ -148,7 +148,7 @@ announceEvent gameEvent =
 gameController :: ControllerInterface m => [PlayerPackage] -> [GameCommand] -> m ()
 gameController players commands = do
   -- traceM ("** INCOMING COMMANDS " ++ show commands) 
-  (_, events) <- Writer.runWriterT $ mapM_ processGameCommandM' commands
+  events <- Writer.execWriterT $ mapM_ processGameCommandM' commands
   mapM_ announceEvent events
   -- st <- State.get
   -- traceM ("** GAMESTATE: " ++ show st)
@@ -163,7 +163,7 @@ gameController players commands = do
 gameController' :: ControllerInterface m => [PlayerPackage'] -> [GameCommand] -> m ()
 gameController' players commands = do
   -- traceM ("** INCOMING COMMANDS " ++ show commands) 
-  (_, events) <- Writer.runWriterT $ mapM_ processGameCommandM' commands
+  events <- Writer.execWriterT $ mapM_ processGameCommandM' commands
   mapM_ announceEvent events
   -- st <- State.get
   -- traceM ("** GAMESTATE: " ++ show st)
