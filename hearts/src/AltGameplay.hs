@@ -41,11 +41,22 @@ data PlayerPackage =
   , commandProcessor :: PlayerCommandProcessor
   }
 
+data PlayerPackage' = 
+  PlayerPackage'
+  { playerName' :: PlayerName
+  , commandProcessor' :: forall m . PlayerConstraints m => GameEvent -> m PlayerPackage'
+  }
+
 -- main entry point
 runGame :: [PlayerPackage] -> IO ()
 runGame players = do
   -- create game state monad on top of IO
   State.evalStateT (startController players) emptyGameState
+
+runGame' :: [PlayerPackage'] -> IO ()
+runGame' players = do
+  -- create game state monad on top of IO
+  State.evalStateT (startController' players) emptyGameState
 
 type HasGameState m = MonadState GameState m
 
@@ -63,6 +74,17 @@ startController players = do
   shuffledCards <- liftIO $ Shuffle.shuffleRounds 10 Cards.deck
   let hands = Map.fromList (zip playerNames (map Set.fromList (Shuffle.distribute (length playerNames) shuffledCards)))
   gameController players [DealHands hands]
+
+startController' :: ControllerConstraints m => [PlayerPackage'] -> m ()
+startController' players = do
+  -- setup game state
+  let playerNames = map playerName' players
+  State.modify (\state -> state { gameStatePlayers = playerNames,
+                                  gameStateStacks  = Map.fromList (zip playerNames $ repeat Set.empty)
+                                })
+  shuffledCards <- liftIO $ Shuffle.shuffleRounds 10 Cards.deck
+  let hands = Map.fromList (zip playerNames (map Set.fromList (Shuffle.distribute (length playerNames) shuffledCards)))
+  gameController' players [DealHands hands]
 
 -- state projections
 
@@ -86,6 +108,9 @@ currentTrickM =
 gameOverM :: HasGameState m => m Bool
 gameOverM =
   fmap gameOver State.get
+
+runPlayer' :: PlayerConstraints m => PlayerPackage' -> GameEvent -> m PlayerPackage'
+runPlayer' (PlayerPackage' p f) gameEvent = f gameEvent
 
 runPlayer :: PlayerConstraints m => PlayerCommandProcessor -> GameEvent -> m PlayerCommandProcessor
 runPlayer (PlayerCommandProcessor f) gameEvent =
@@ -123,7 +148,7 @@ announceEvent gameEvent =
 gameController :: ControllerConstraints m => [PlayerPackage] -> [GameCommand] -> m ()
 gameController players commands = do
   -- traceM ("** INCOMING COMMANDS " ++ show commands) 
-  (_, events) <- Writer.runWriterT $ mapM_ processGameCommandM commands
+  (_, events) <- Writer.runWriterT $ mapM_ processGameCommandM' commands
   mapM_ announceEvent events
   -- st <- State.get
   -- traceM ("** GAMESTATE: " ++ show st)
@@ -134,6 +159,19 @@ gameController players commands = do
     ) players
   unless (null commands') $
     gameController players' commands'
+
+gameController' :: ControllerConstraints m => [PlayerPackage'] -> [GameCommand] -> m ()
+gameController' players commands = do
+  -- traceM ("** INCOMING COMMANDS " ++ show commands) 
+  (_, events) <- Writer.runWriterT $ mapM_ processGameCommandM' commands
+  mapM_ announceEvent events
+  -- st <- State.get
+  -- traceM ("** GAMESTATE: " ++ show st)
+  -- traceM ("** OUTGOING EVENTS " ++ show events)
+  (players', commands') <- Writer.runWriterT $ 
+    mapM (\player -> Foldable.foldlM runPlayer' player events) players
+  unless (null commands') $
+    gameController' players' commands'
 
 processGameCommandM :: GameConstraints m => GameCommand -> m ()
 processGameCommandM command =
@@ -298,6 +336,42 @@ strategyPlayer playerName strategy@(PlayerStrategy chooseCard) playerState =
 
     return (strategyPlayer playerName strategy nextPlayerState)
 
+makePlayerPackage' :: PlayerName -> PlayerStrategy -> PlayerPackage'
+makePlayerPackage' playerName strategy =
+  strategyPlayer' playerName strategy emptyPlayerState
+
+strategyPlayer' :: PlayerName -> PlayerStrategy -> PlayerState -> PlayerPackage'
+strategyPlayer' playerName strategy@(PlayerStrategy chooseCard) playerState =
+  PlayerPackage' playerName $ \ event -> do
+    (_, nextPlayerState) <- flip State.runStateT playerState $ do
+      playerProcessGameEvent playerName event
+      playerState <- State.get
+      -- traceM ("** PLAYER " ++ playerName ++ ": " ++ show playerState)
+      case event of
+        HandsDealt _ ->
+          when (Set.member twoOfClubs (playerHand playerState)) $
+            Writer.tell [PlayCard playerName twoOfClubs]
+
+        PlayerTurn turnPlayerName ->
+          when (playerName == turnPlayerName) $ do
+            -- liftIO $ putStrLn ("Your turn, " ++ playerName)
+            card <- chooseCard
+            Writer.tell [PlayCard playerName card]
+
+        CardPlayed _ _ ->
+          return ()
+
+        TrickTaken _ _ ->
+          return ()
+
+        IllegalMove _ ->
+          return ()
+
+        GameOver ->
+          return ()
+
+    return (strategyPlayer' playerName strategy nextPlayerState)
+
 
 -- stupid robo player
 playAlongStrategy :: PlayerStrategy
@@ -346,6 +420,14 @@ playerNicole = makePlayerPackage "Nicole" playAlongStrategy
 
 start :: IO ()
 start = runGame [playerNicole, playerAnnette, playerPeter, playerMike]
+
+playerMike' = makePlayerPackage' "Mike" playAlongStrategy
+playerPeter' = makePlayerPackage' "Peter" playInteractive
+playerAnnette' = makePlayerPackage' "Annette" playAlongStrategy
+playerNicole' = makePlayerPackage' "Nicole" playAlongStrategy
+
+start' :: IO ()
+start' = runGame' [playerNicole', playerAnnette', playerPeter', playerMike']
 
 {-
 remote: 
