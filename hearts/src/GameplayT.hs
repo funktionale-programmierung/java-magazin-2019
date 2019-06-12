@@ -41,7 +41,7 @@ import Debug.Trace (trace)
 
 
 class MonadTrans monadT => Player player monadT event command | player -> monadT, player -> event, player -> command where
-  play :: Monad monad => player -> event -> (monadT monad) [command]
+  play :: Monad monad => player -> EventProcessor (monadT monad) event command
 
 type EventProcessor monad event command = event -> monad [command]
 
