@@ -420,7 +420,7 @@ Gleichung für das `DealHands`-Command:
 ```haskell
 processGameCommand (DealHands hands) state =
   let event = HandsDealt hands
-  in (processGameEvent state event, [event])
+  in (processGameEvent event state, [event])
 ```
 
 Da dieser Befehl von der "Spielleitung" kommt, führt er immer zu einem
@@ -430,7 +430,7 @@ Platzgründen fehlt, aber deren Arbeitsweise sich wieder gut an der
 Typsignatur ablesen lässt:
 
 ```haskell
-processGameEvent :: GameState -> GameEvent -> GameState
+processGameEvent :: GameEvent -> GameState -> GameState
 ```
 
 Die Kernlogik ist in der Gleichung für das `PlayCard`-Command. Diese
@@ -447,20 +447,20 @@ processGameCommand (PlayCard player card) state =
   if playValid state player card
   then
     let event1 = CardPlayed player card
-        state1 = processGameEvent state event1
+        state1 = processGameEvent event1 state
     in  if turnOver state1 then
           let trick = gameStateTrick state1
               trickTaker = whoTakesTrick trick
               event2 = TrickTaken trickTaker trick
-              state2 = processGameEvent state event2
+              state2 = processGameEvent event2 state
               event3 = if gameOver state
                        then GameOver
                        else PlayerTurn trickTaker
-              state3 = processGameEvent state event3
+              state3 = processGameEvent event3 state
           in (state3, [event1, event2, event3])
         else
           let event2 = PlayerTurn (nextPlayer state1)
-              state2 = processGameEvent state event2
+              state2 = processGameEvent event2 state
           in (state2, [event1, event2])
   else
     (state, [IllegalMove player, PlayerTurn player])
@@ -488,8 +488,8 @@ In monadischer Form lässt sich die Funktion für `PlayCard` wie folgt
 hinschreiben:
 
 ```haskell
-processGameCommandM'' :: GameConstraints m => GameCommand -> m ()
-processGameCommandM'' (PlayCard playerName card) =
+processGameCommandM :: GameInterface m => GameCommand -> m ()
+processGameCommandM (PlayCard playerName card) =
   ifM (playValidM playerName card) (do
      processAndPublishEvent (CardPlayed playerName card)
      ifM turnOverM (do
@@ -510,21 +510,20 @@ processGameCommandM'' (PlayCard playerName card) =
 
 Die monadische Form beschreibt eine Abfolge von Aktionen, die
 vom Ergebnis vorangegangener Aktionen abhängen dürfen. Diese Aktionen
-werden in einer Monade `m`interpretiert, die verschiedene Features
+werden in einer Monade `m` interpretiert, die verschiedene Features
 haben kann. Im vorliegenden Beispiel werden diese Features durch
-`GameConstraints m` angegeben; die Funktion selbst erwartet wie gehabt
+`GameInterface m` angegeben; die Funktion selbst erwartet wie gehabt
 ein `GameCommand` und liefert eine Aktion vom Typ `m ()`. Dabei ist
-`m`eine Monade, aber der Typ gibt keine konkrete Implementierung vor,
-sondern gibt nur die Features von `m` an, die `processGameCommand`
+`m` eine Monade, aber der Typ von `processGameCommandM` gibt keine konkrete Implementierung vor,
+sondern listet nur die Features von `m` auf, die `processGameCommandM`
 verwenden darf. In unserem Fall sind das zwei Features:
 
 ```haskell
-type GameConstraints m = (MonadState GameState m, MonadWriter [GameEvent] m)
+type GameInterface m = (MonadState GameState m, MonadWriter [GameEvent] m)
 ```
 
-Der Zustandsanteil `MonadState` sorgt dafür, dass der aktuelle
-`GameState` jeder Aktion zur Verfügung steht und durch sie geändert
-werden darf. Über den Ausgabeanteil `MonadWriter` kann eine Aktion
+Der Zustandsanteil `MonadState` sorgt dafür, dass jede Aktion auf den aktuellen
+`GameState` zugreifen und ihn ändern kann. Über den Ausgabeanteil `MonadWriter` kann eine Aktion
 `GameEvent`s an den Kontext schicken.
 
 Da der Zustand nicht mehr explizit herumgereicht wird, muss sich eine
@@ -537,17 +536,18 @@ playValidM playerName card = do
   return (playValid state playerName card)
 ```
 
-Offenbar hat `playValidM` noch weniger Anforderungen, denn es verlangt
-nur den Zustandsanteil.
-Dabei bewirkt das `do`, dass die folgenden Aktionen hintereinander
+Offenbar hat die Funktion `playValidM` noch weniger Anforderungen an
+die Monade, denn sie verlangt nur den Zustandsanteil.
+Dabei bewirkt das `do`, dass die Aktionen in den beiden folgenden Zeilen hintereinander
 ausgeführt werden. Die Aktion `state <- State.get` besorgt den aktuellen
 Zustand, der für die folgenden Aktionen in der Variable `state` zur
 Verfügung steht. Die verbleibende `return` Aktion gibt den Zustand
 unverändert weiter und liefert als Ergebnis den Wert von `playValid`. 
 
 Auf die gleiche Art und Weise funktionieren auch die Aktionen `turnOverM`, `currentTrickM`,
-`gameOverM` und `nextPlayerM`. Die Funktion `ifM` funktioniert wie
-`if`, nur in einer Monade: Das erste Argument muss ein `Bool` liefern,
+`gameOverM` und `nextPlayerM`, die allesamt Informationen aus dem
+Zustand projezieren. Die Funktion `ifM` funktioniert wie
+`if`, nur in einer Monade: Alle Argumente sind Aktionen. Das erste Argument muss ein `Bool` liefern,
 daher hat es den Typ `m Bool`. Das zweite und dritte ("then" und
 "else") Argument hat jeweils den Typ `m a`, also die gleiche Monade
 mit dem gleichen Rückgabetyp `a`.
@@ -555,9 +555,9 @@ mit dem gleichen Rückgabetyp `a`.
 Zum Schluss müssen wir noch die Events lokal verarbeiten und verschicken:
 
 ```haskell
-processAndPublishEvent :: GameConstraints m => GameEvent -> m ()
+processAndPublishEvent :: GameInterface m => GameEvent -> m ()
 processAndPublishEvent gameEvent = do
-  State.modify (\state -> processGameEvent state gameEvent)
+  State.modify (\state -> processGameEvent gameEvent state)
   Writer.tell [gameEvent]
 ```
   
@@ -569,14 +569,125 @@ Dann wird der Event an die Spieler kommuniziert. Die Aktion
 `Writer.tell` verwendert dafür den Ausgabeanteil der Monade. Aus
 technischen Gründen muss der Event in eine Liste verpackt werden.
 
+## Spielerlogik
+
+Während die Spiellogik Kommandos entgegennimmt und dafür Events
+generiert, funktioniert die Spielerlogik genau andersherum. Sie nimmt
+Events entgegen und liefert als Antwort Kommandos, die an die
+Spiellogik weitergegeben werden. 
+
+Für die Implementierung der Spielerlogik wollen wir maximale
+Freiheiten haben und verwenden dabei wieder das Architekturmuster der
+Monaden. Das heißt, jede Spielerin wird in einer abstrakten Monade
+gestartet, von der sie nur weiß, dass sie Kommandos an die Spiellogik
+schicken kann und dass sie Zugriff auf I/O-Operationen hat (zum
+Beispiel um über ein GUI zu interagieren oder den Telefonjoker
+anzurufen). Diese Features drücken wir 
+wieder durch entsprechende Konstraints aus:[^8]
+
+```haskell
+type PlayerInterface m = (MonadIO m, MonadWriter [GameCommand] m)
+```
+
+Jede Spielerin kann nun für sich selbst entscheiden, welche weiteren
+Features sie lokal verwenden möchte. Typischerweise verwaltet jede
+Spielerin ihre eigene Version vom Spielzustand, weil sie **nicht** auf
+den `GameState` der Spiellogik zugreifen kann. Die Ausgestaltung
+dieses Spielzustands ist der Spiellogik völlig gleichgültig und kann
+auch von jeder Spielerin anders gehandhabt werden. Das erreichen wir
+durch eine Konstruktion, die ähnlich wie ein Java-Interface
+funktioniert, aber darüber hinaus noch lokal erweiterbar ist:
+
+```haskell
+data PlayerPackage = 
+  PlayerPackage
+  { playerName :: PlayerName
+  , eventProcessor :: forall m . PlayerInterface m => GameEvent -> m PlayerPackage
+  }
+
+runPlayer :: PlayerInterface m => PlayerPackage -> GameEvent -> m PlayerPackage
+runPlayer (PlayerPackage p f) gameEvent =
+  f gameEvent
+```
+
+In der `PlayerPackage` hat eine Spielerin einen Namen und eine
+Event-Prozessor Funktion, die ein `GameEvent` als Aktion in einer
+Spielermonade `m` interpretiert. Dieses `m` kann beliebig 
+gewählt werden (das wird durch das `forall m` ausgedrückt) und kann
+sich darauf verlassen, dass das `PlayerInterface` vom Aufrufer zur
+Verfügung gestellt wird.
+
+
+Es bleibt die Implementierung einer Spielerin anzusehen. Zur
+Vereinfachung geben wir einen Typ `PlayerState` vor, der die aktuelle Hand
+und die abgelegten Karten der Spielerin nachhält. Weiter verwenden wir
+eine Funktion `playerProcessGameEvent`, die den Spielerzustand
+entsprechend der eingehenden Events ändert. Die einzig verbleibende
+Variable ist die Strategie, nach der die Spielerin eine Karte abwirft.
+
+```haskell
+data PlayerState = ...
+
+playerProcessGameEvent :: (MonadState PlayerState m, PlayerInterface m) => PlayerName -> GameEvent -> m ()
+
+type StrategyInterface m = (MonadState PlayerState m, MonadIO m)
+
+data PlayerStrategy
+  = PlayerStrategy { chooseCard :: forall m . StrategyInterface m => m Card }
+```
+
+Der Typ der `PlayerStrategy` zeigt, dass die Strategie lediglich auf
+`PlayerState` und auf I/O zurückgreifen kann um eine Karte
+auszuwählen. Die Strategie wird aufgerufen, nachdem die eingehenden
+Events verarbeitet worden sind:
+
+```haskell
+strategyPlayer :: PlayerName -> PlayerStrategy -> PlayerState -> PlayerPackage
+strategyPlayer playerName strategy playerState =
+  PlayerPackage playerName $ \ event -> do
+    nextPlayerState <- flip State.execStateT playerState $ do
+      playerProcessGameEvent playerName event
+      playerState <- State.get
+      case event of
+        HandsDealt _ ->
+          when (Set.member twoOfClubs (playerHand playerState)) $
+            Writer.tell [PlayCard playerName twoOfClubs]
+
+        PlayerTurn turnPlayerName ->
+          when (playerName == turnPlayerName) $ do
+            card <- chooseCard strategy
+            Writer.tell [PlayCard playerName card]
+
+        _ ->
+          return ()
+
+    return (strategyPlayer playerName strategy nextPlayerState)
+```
+
+Aus dem Code wird klar, dass die `PlayerPackage` eine Closure ist, die
+die `strategy` und den aktuellen `playerState` enthält. Intern erzeugt
+sie einen Event-Prozessor, der auf die abstrakte Monade mit dem
+`PlayerInterface` noch einen Zustandsanteil hinzufügt, der den
+`PlayerState` enthält (`State.execStateT playerState`). Der Code im
+darauf folgenden `do` kann demnach auch auf den Spielerzustand
+zugreifen und sein Endzustand wird in `nextPlayerState`
+festgehalten. Nachdem der Event im Spielerzustand abgebildet worden
+ist, folgt die spezifische Eventbearbeitung. Zu Beginn (`HandsDealt` Event)
+spielt die Spielerin mit der Kreuz Zwei auf. Ansonsten wählt die
+Spielerin gemäß der vorgegebenen Strategie (`chooseCard strategy`). In
+beiden Fällen wird ein entsprechendes `PlayCard` Kommando
+signalisiert. Da ja keine Veränderungen an Objekten möglich sind,
+erzeugt der `strategyPlayer` zum Schluss eine neue `PlayerPackage`, die
+den Zustand nach der Verarbeitung des Events festhält. 
+
 ### Peter's code, minimal set
 
 ```haskell
-type GameConstraints m = (MonadIO m, MonadState GameState m, MonadWriter [GameEvent] m)
+type GameInterface m = (MonadState GameState m, MonadWriter [GameEvent] m)
 ```
 
 ```haskell
-processGameCommandM' :: GameConstraints m => GameCommand -> m ()
+processGameCommandM' :: GameInterface m => GameCommand -> m ()
 processGameCommandM' (DealHands playerHands) =
    processAndPublishEvent (HandsDealt playerHands)
 processGameCommandM' (PlayCard playerName card) =
@@ -602,32 +713,29 @@ processGameCommandM' (PlayCard playerName card) =
 ```
 
 ```haskell
-processAndPublishEvent :: GameConstraints m => GameEvent -> m ()
+processAndPublishEvent :: GameInterface m => GameEvent -> m ()
 processAndPublishEvent gameEvent = do
   processGameEventM gameEvent
   Writer.tell [gameEvent]
 ```
 
 ```haskell
-processGameEvent :: GameConstraints m => GameEvent -> m ()
+processGameEventM :: GameInterface m => GameEvent -> m ()
 ```
 
 ```haskell
-type PlayerConstraints m = (MonadIO m, MonadWriter [GameCommand] m)
+type PlayerInterface m = (MonadIO m, MonadWriter [GameCommand] m)
 ```
 
 ```haskell
-data PlayerCommandProcessor =
-  PlayerCommandProcessor (forall m . PlayerConstraints m =>
-                         GameEvent -> m PlayerCommandProcessor)
-
 data PlayerPackage = 
   PlayerPackage
   { playerName :: PlayerName
-  , commandProcessor :: PlayerCommandProcessor
+  , commandProcessor :: forall m . PlayerInterface m =>
+                         GameEvent -> m PlayerPackage
   }
 
-runPlayer :: PlayerConstraints m => PlayerCommandProcessor -> GameEvent -> m PlayerCommandProcessor
+runPlayer :: PlayerInterface m => PlayerCommandProcessor -> GameEvent -> m PlayerCommandProcessor
 runPlayer (PlayerCommandProcessor f) gameEvent =
   f gameEvent
 ```
@@ -712,6 +820,11 @@ Wartbarkeit des Codes.
 [^6]: Die auch in Python Eingang gefunden hat.
 
 [^7]: Funktionale Programmierer sprechen von *curried functions* und *currying*, [`https://de.wikipedia.org/wiki/Currying`](https://de.wikipedia.org/wiki/Currying). 
+
+[^8]: `MonadIO m` ist ein vordefiniertes Konstraint, das Zugriff zu
+allen I/O-Operationen erlaubt. Selbstverständlich kann man
+Einschränkungen definieren, sodass nur bestimmte I/O-Operationen
+zulässig sind.
 
 ## Michael Sperber
 
