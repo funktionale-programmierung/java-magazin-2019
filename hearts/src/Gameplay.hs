@@ -70,7 +70,7 @@ makeIOEventSourcing processEventM' state =
      return (EventSourcing readStateM processEventM)
 
 makeGameIOEventSourcing :: IO (GameEventSourcing IO)
-makeGameIOEventSourcing = makeIOEventSourcing (\ state event -> return (processGameEvent state event)) emptyGameState
+makeGameIOEventSourcing = makeIOEventSourcing (\ state event -> return (processGameEvent event state)) emptyGameState
 
 playerHandM :: Monad monad => GameEventSourcing monad -> PlayerName -> monad Hand
 playerHandM eventSourcing player =
@@ -87,7 +87,7 @@ type StateWriterEventSourcing state event monad = StateT state (WriterT [event] 
 processGameEventM :: Monad monad => GameEvent -> StateWriterEventSourcing GameState GameEvent monad ()
 processGameEventM event =
   do gameState <- State.get
-     State.put (processGameEvent gameState event)
+     State.put (processGameEvent event gameState)
      Writer.tell [event]
      return ()
 
@@ -156,7 +156,7 @@ gameCommandEventsM :: Monad monad => GameEventSourcing monad -> GameCommand -> m
 gameCommandEventsM ges gameCommand | trace ("gameCommandsEventsM " ++ show gameCommand) False = undefined
 gameCommandEventsM ges gameCommand =
   do gameState <- eventSourcingReadStateM ges
-     let (gameState', gameEvents) = processGameCommand gameState gameCommand
+     let (gameState', gameEvents) = processGameCommand gameCommand gameState
      mapM_ (eventSourcingProcessEventM ges) gameEvents
      return (trace ("gameEvents " ++ show gameEvents) gameEvents)
 
@@ -187,7 +187,7 @@ playerPackageName (PlayerPackage (Player playerName _) _) = playerName
 playerProcessGameEventM :: Monad monad => PlayerName -> GameEvent -> StateT PlayerState monad ()
 playerProcessGameEventM playerName event =
   do playerState <- State.get
-     let playerState' = playerProcessGameEvent playerName playerState event
+     let playerState' = playerProcessGameEvent playerName event playerState
      State.put playerState'
 
 strategyPlayer :: Monad monad => PlayerName -> Strategy monad -> Player (StateT PlayerState monad)

@@ -137,7 +137,7 @@ gameController players commands = do
 processGameCommandM :: GameConstraints m => GameCommand -> m ()
 processGameCommandM command =
   do gameState <- State.get
-     let (gameState', events) = processGameCommand gameState command
+     let (gameState', events) = processGameCommand command gameState
      State.put gameState'
      Writer.tell events
 

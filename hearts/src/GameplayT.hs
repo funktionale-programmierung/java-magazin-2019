@@ -69,7 +69,7 @@ class Monad monad => Strategy' strategy monad | strategy -> monad  where
 playerProcessGameEventM :: State.MonadState PlayerState monad => PlayerName -> GameEvent -> monad ()
 playerProcessGameEventM playerName event =
   do playerState <- State.get
-     let playerState' = playerProcessGameEvent playerName playerState event
+     let playerState' = playerProcessGameEvent playerName event playerState
      State.put playerState'
 
 -- FIXME: any point to this - i.e. any point not shortening monadT monad -> monad
@@ -145,7 +145,7 @@ trickM =
 processGameEventM :: Monad monad => GameEvent -> GameEventSourcingT monad ()
 processGameEventM event =
   do gameState <- State.get
-     State.put (processGameEvent gameState event)
+     State.put (processGameEvent event gameState)
      Writer.tell [event]
      return ()
 
@@ -184,7 +184,7 @@ gameCommandEventsM :: Monad monad => GameCommand -> GameEventSourcingT monad [Ga
 gameCommandEventsM gameCommand | trace ("gameCommandsEventsM " ++ show gameCommand) False = undefined
 gameCommandEventsM gameCommand =
   do gameState <- eventSourcingReadStateM
-     let (gameState', gameEvents) = processGameCommand gameState gameCommand
+     let (gameState', gameEvents) = processGameCommand gameCommand gameState
      mapM_ processGameEventM gameEvents
      return (trace ("gameEvents " ++ show gameEvents) gameEvents)
 

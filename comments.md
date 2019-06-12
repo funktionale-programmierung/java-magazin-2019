@@ -1,11 +1,11 @@
 # Kommentare
 
-## ein anderes Bild
+## DONE ein anderes Bild
 
 Ich hab pptx mal ein alternatives Bild skizziert. Leider sind meine pp
 Skills nicht so gut, aber vielleicht kannst du trotzdem was erkennen.
 
-## Architektur
+## DONE Architektur
 
 Den Begriff "Softwarearchitektur" kann man auf zweierlei Art lesen
 1. als Herangehensweise zur systematischen Konstruktion von großen Programmsystemen oder
@@ -29,7 +29,7 @@ Vielleicht in einem Float?
 
 Immutable ist durchaus ein Begriff, der den Jung-Entwicklern bekannt ist.
 
-## Notwenig?
+## DONE Notwendig?
 
 Das `deck` wird von Haskell folgendermaßen ausgedruckt:
 

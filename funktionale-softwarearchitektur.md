@@ -406,7 +406,7 @@ zentrale Funktion für die Verarbeitung eines Commands
 hat deswegen folgende Signatur:
 
 ```haskell
-processGameCommand :: GameState -> GameCommand -> (GameState, [GameEvent])
+processGameCommand :: GameCommand -> GameState -> (GameState, [GameEvent])
 ```
 
 Mit anderen Worten (Repräsentation des) Zustand vorher rein, Command
@@ -415,7 +415,7 @@ resultierender Events raus.  Hier ist die Implementierung der
 Gleichung für das `DealHands`-Command:
 
 ```haskell
-processGameCommand state (DealHands hands) =
+processGameCommand (DealHands hands) state =
   let event = HandsDealt hands
   in (processGameEvent state event, [event])
 ```
@@ -440,7 +440,7 @@ Events `event1`, `event2` etc. und Zwischenzustände `state1`, `state2`
 mit `let`:
 
 ```haskell
-processGameCommand state (PlayCard player card) =
+processGameCommand (PlayCard player card) state =
   if playValid state player card
   then
     let event1 = CardPlayed player card
