@@ -75,11 +75,13 @@ Event `HandDealt PlayerName Hand` vorsehen, der jedem Spieler einzeln
 seine `Hand` mitteilt. Das liefert einen Vorgeschmack von
 Event-Routing.
 
-## processGameCommand, processGameEvent
+## DONE processGameCommand, processGameEvent
 
 Ich fände es sinnvoll, die Argumente zu vertauschen, so dass jeweils
 das `GameCommand` bzw das `GameEvent` der erste Parameter ist. Passt
 dann auch genau zur State-Monade.
+
+## processGameCommand, processGameEvent
 
 Beim `processGameCommand` ist auch komisch, dass der
 `processGameEvent` sofort ausgeführt wird, während der Rest der Welt
