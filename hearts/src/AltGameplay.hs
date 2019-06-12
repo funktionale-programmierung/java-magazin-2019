@@ -31,20 +31,20 @@ data PlayerStrategy
 
 type PlayerConstraints m = (MonadIO m, MonadWriter [GameCommand] m)
 
-data PlayerCommandProcessor =
-  PlayerCommandProcessor (forall m . PlayerConstraints m =>
-                         GameEvent -> m PlayerCommandProcessor)
+data PlayerEventProcessor =
+  PlayerEventProcessor (forall m . PlayerConstraints m =>
+                         GameEvent -> m PlayerEventProcessor)
 
 data PlayerPackage = 
   PlayerPackage
   { playerName :: PlayerName
-  , commandProcessor :: PlayerCommandProcessor
+  , eventProcessor :: PlayerEventProcessor
   }
 
 data PlayerPackage' = 
   PlayerPackage'
   { playerName' :: PlayerName
-  , commandProcessor' :: forall m . PlayerConstraints m => GameEvent -> m PlayerPackage'
+  , eventProcessor' :: forall m . PlayerConstraints m => GameEvent -> m PlayerPackage'
   }
 
 -- main entry point
@@ -112,8 +112,8 @@ gameOverM =
 runPlayer' :: PlayerConstraints m => PlayerPackage' -> GameEvent -> m PlayerPackage'
 runPlayer' (PlayerPackage' p f) gameEvent = f gameEvent
 
-runPlayer :: PlayerConstraints m => PlayerCommandProcessor -> GameEvent -> m PlayerCommandProcessor
-runPlayer (PlayerCommandProcessor f) gameEvent =
+runPlayer :: PlayerConstraints m => PlayerEventProcessor -> GameEvent -> m PlayerEventProcessor
+runPlayer (PlayerEventProcessor f) gameEvent =
   f gameEvent
 
 announceEvent :: ControllerConstraints m => GameEvent -> m ()
@@ -154,8 +154,8 @@ gameController players commands = do
   -- traceM ("** GAMESTATE: " ++ show st)
   -- traceM ("** OUTGOING EVENTS " ++ show events)
   (players', commands') <- Writer.runWriterT $ mapM
-    (\pp -> do cp' <- Foldable.foldlM runPlayer (commandProcessor pp) events
-               return pp { commandProcessor = cp' }
+    (\pp -> do cp' <- Foldable.foldlM runPlayer (eventProcessor pp) events
+               return pp { eventProcessor = cp' }
     ) players
   unless (null commands') $
     gameController players' commands'
@@ -304,9 +304,9 @@ makePlayerPackage :: PlayerName -> PlayerStrategy -> PlayerPackage
 makePlayerPackage playerName strategy =
   PlayerPackage playerName $ strategyPlayer playerName strategy emptyPlayerState
 
-strategyPlayer :: PlayerName -> PlayerStrategy -> PlayerState -> PlayerCommandProcessor
+strategyPlayer :: PlayerName -> PlayerStrategy -> PlayerState -> PlayerEventProcessor
 strategyPlayer playerName strategy@(PlayerStrategy chooseCard) playerState =
-  PlayerCommandProcessor $ \ event -> do
+  PlayerEventProcessor $ \ event -> do
     (_, nextPlayerState) <- flip State.runStateT playerState $ do
       playerProcessGameEvent playerName event
       playerState <- State.get
