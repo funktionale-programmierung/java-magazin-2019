@@ -77,7 +77,7 @@ Herzkarte einen Punkt; alle weiteren Karten 0 Punkte.
 
 ![Modellierung des Spielablaufs](gameplay.pdf)
 
-Als Basis des Entwurfs verwenden wir ein klassisches taktisches Muster aus dem
+Als Basis des Entwurfs verwenden wir ein klassisches taktisches Entwurfsmuster aus dem
 *Domain-Driven Design*[^5] und modellieren das Kartenspiel auf der
 Basis von *domain events*. 
 Abbildung 1 zeigt den Ablauf: Jede Spielerin nimmt Events entgegen,
@@ -86,7 +86,7 @@ Commands, die Spielzüge repräsentieren.  Die "Gameplay"-Komponente
 nimmt die Commands entgegen, überprüft sie auf Korrektheit (War die
 Spielerin überhaupt dran? War der Spielzug regelkonform?) und
 generiert ihrerseits daraus wieder Events.
-Das Muster ist das gleiche wie in "objektorientiertem DDD", aber die
+Das Entwurfsmuster ist das gleiche wie in "objektorientiertem DDD", aber die
 Umsetzung unterscheidet sich durch die Verwendung von unveränderlichen Daten und Funktionen. 
 
 Im Beispiel stellen wir die Kommunikation zwischen den einzelnen Komponenten der
