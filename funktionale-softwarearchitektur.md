@@ -21,21 +21,18 @@ Softwareentwurfs mit den Mitteln der funktionalen Programmierung.
 Sie zeichnet sich unter anderem durch folgende Aspekte aus:
 
 * An die Stelle des Objekts mit gekapseltem Zustand tritt die *Funktion*, die auf
-  *unveränderlichen Daten* arbeitet.  
+  *unveränderlichen Daten* arbeitet.
 
 <!-- Auch sonst werden die *Effekte* eingeschränkt, die Funktionen haben können. -->
 
-* <!-- Die mächtigen Typsysteme --> Funktionale Sprachen (ob statisch oder
+* Funktionale Sprachen (ob statisch oder
   dynamisch) erlauben ein von *Typen*  getriebenes,
   systematisches Design von Datenmodellen und Funktionen.
 
-* <!-- In funktionaler Architekur entstehen --> Statt starrer hierarchischen
+* Statt starrer hierarchischen
   Strukturen entstehen flexible <!-- sogenannte *Kombinatormodelle* und --> in die
   funktionale Programmiersprache *eingebettete domänenspezifische
   Sprachen*.
-
-<!-- Das ist also ein ziemlich weites Feld (und die Liste ist noch nicht -->
-<!-- einmal vollständig), und jedes dieser Aspekte füllt ganze Bücher. -->
 
 Wir konzentrieren uns in diesem Artikel auf den ersten Punkt, also
 den Umgang mit Funktionen und unveränderlichen Daten.  Dabei werden wir
@@ -57,7 +54,7 @@ benutzen wir für die Beispiele in diesem Artikel die funktionale
 Sprache Haskell[^1], die besonders kurze und elegante Programme
 ermöglicht.  Keine Sorge: Wir erläutern den Code, so dass er auch ohne
 Vorkenntnisse in Haskell lesbar ist.  Wer dadurch auf Haskell
-neugierig geworden ist, kann sich mit Anschlusss eine Einführung in 
+neugierig geworden ist, kann sich eine Einführung in 
 funktionale Programmierung[^2] und ein Buch zu Haskell[^3] zu Gemüte
 führen.
 
@@ -95,19 +92,19 @@ Umsetzung unterscheidet sich durch die Verwendung von unveränderlichen Daten un
 Im Beispiel stellen wir die Kommunikation zwischen den einzelnen Komponenten der
 Architektur direkt mit Funktionsaufrufen her, aber andere
 Mechanismen - nebenläufige Prozesse oder Mikroservices - sind
-natürlich auch möglich.
+auch möglich.
 
 ## Programmieren mit unveränderlichen Daten
 
 Eine Vorbemerkung: "Unveränderliche Daten" bedeutet, dass es keine Zuweisungen gibt, die Attribute von
 Objekten verändern könnten.  Wenn Veränderung modelliert werden soll,
-so generiert ein funktionales Programm neue Objekte.  Das
-mag als Einschränkung erscheinen, bietet aber enorme Vorteile:
+so generiert ein funktionales Programm neue Objekte.  Diese
+Einschränkung bietet enorme Vorteile:
 
 * Es gibt niemals Probleme mit verdeckten Zustandsänderungen durch
   Methodenaufrufe oder nebenläufige Prozesse. 
   
-* Es gibt keine inkonsistenten Zwischenzustände dadurch, dass ein
+* Es gibt keine inkonsistenten Zwischenzustände, wenn ein
   Programm erst das eine Feld, dann das nächste etc. setzt.
 
 * Das Programm kann problemlos durch ein Gedächtnis erweitert werden,
@@ -115,14 +112,15 @@ mag als Einschränkung erscheinen, bietet aber enorme Vorteile:
   Spielerin ihren Zug zurücknimmt.
 
 * Es gibt keine verstecken Abhängigkeiten durch die Kommunikation von
-Zustand hinter den Kulissen.
+  Zustand hinter den Kulissen.
 
-Aus diesen Gründen werden auch in Java oft Value-Objekte verwendet.
+Aus den gleichen Gründen ist in Java das Programmieren mit
+Value-Objekten oft nützlich.
   
 ## Kartenspiel modellieren
 
 Die konkrete Modellierung beginnt mit den Spielkarten.  Die folgende
-Deklaration des Datentyps "Card" definiert einen Recordtyp (struct)
+Deklaration des Datentyps `Card` definiert einen Recordtyp (struct)
 und legt damit fest, dass eine Karte eine Farbe ("suit") und einen Wert ("rank") hat.
 
 ```haskell
@@ -166,13 +164,13 @@ Das Beispiel zeigt, dass `Card` als Konstruktorfunktion agiert.
 Außerdem auffällig: In Haskell werden Funktionsaufrufe ohne Klammern
 und Komma geschrieben, Klammern dienen nur zum Gruppieren.
 
-Die Deklaration von `Cards` definiert auch die Selektoren `suit` und
+Die Deklaration von `Cards` definiert auch die "Getter-Funktionen" `suit` und
 `rank`, die wie Funktionen verwendet werden. 
 
 Für Hearts wird ein kompletter Satz Karten benötigt.  Der wird durch
 folgende Definitionen generiert, die jeweils eine Liste aller Farben,
 eine Liste aller Werte und schließlich daraus eine Liste aller Karten
-(also aller Kombinationen aus Farben und Werten) konstruieren.
+(also aller Kombinationen aus Farben und Werten) konstruiert.
 
 ```haskell
 allSuits :: [Suit]
@@ -188,11 +186,11 @@ deck = [Card suit rank | rank <- allRanks, suit <- allSuits]
 Jede Definition wird von einer *Typdeklaration* begleitet.  `allSuits
 :: [Suit]` bedeutet, dass `allSuits` eine *Liste* (die eckigen
 Klammern) von Farben ist.  Die Definitionen für `allRanks` und `deck` benutzen
-sogenannte Comprehension-Syntax[^6], um konzise die Werte und
+sogenannte Comprehension-Syntax[^6], um die Werte und
 schließlich alle Karten aufzuzählen.
 
 Für die Umsetzung eines Kartenspiels müssen die Karten repräsentiert werden,
-die eine Spielerin auf der Hand hat: als Menge von Karten.
+die eine Spielerin auf der Hand hat: als Menge ("set") von Karten.
 
 ```haskell
 type Hand = Set Card
@@ -253,8 +251,8 @@ ist `hand1` immer noch die "alte" Hand und `hand2` die neue.
 Das ist in Haskell nicht nur eine Konvention: Eine Funktion *kann* 
 nicht einfach so Objekte "verändern", es handelt es sich im Sprech der
 funktionalen Programmierung immer um eine "reine" oder "pure"
-Funktion.  Diese rein funktionale Programmierung macht die Typsignatur
-enorm nützlich, weil sie wirklich alles aufführt, was in die Funktion
+Funktion.  Diese *rein funktionale Programmierung* macht die Typsignatur
+enorm nützlich, weil sie alles aufführt, was in die Funktion
 hineingeht und wieder hinausgeht: Es gibt keine versteckten
 Abhängigkeiten zu globalem Zustand und alle Ausgaben stehen hinter dem
 rechten Pfeil der Signatur. Daher sind die rechten und linken Seiten
@@ -307,8 +305,7 @@ snd :: (a, b) -> b
 Solche generischen Funktionen gibt es (inzwischen) auch in Java, aber
 in funktionalen Sprachen kommen sie im Zusammenhang mit
 Higher-Order-Funktionen viel häufiger zur Anwendung. 
-
-Funktionen wie `map` sind ein wichtiger Aspekt funktionaler
+Sie sind ein wichtiger Aspekt funktionaler
 Architektur: Diese macht nicht an der konkreten Modellierung von
 fachlichem Wissen halt, sondern erlaubt den Entwicklerinnen,
 Abstraktionen zu bilden, die das fachliche Wissen verallgemeinern.
@@ -322,12 +319,12 @@ Größe das Risiko, dass versteckte Effekte unerwünschte
 Wechselwirkungen haben.  Deshalb sind Disziplin und eigene
 architektonische Patterns notwendig, um die resultierende Komplexität
 in den Griff zu bekommen.  In der funktionalen Programmierung ist das
-nicht so. Dementsprechend ist das "Programmieren im Großen" dem
+nicht so. Dementsprechend ist dort das "Programmieren im Großen" dem
 "Programmieren im Kleinen" ziemlich ähnlich.
 
 ## Spiel-Logik
 
-Die Spiellogik bildet den Mittelbau der Architektur.  Ein "Event-Storming" liefert folgende
+Die Spiellogik bildet den Mittelbau der Architektur.  Ein Event-Storming liefert folgende
 Event-Klassen:
 
 * Die Karten wurden ausgeteilt.
@@ -350,7 +347,6 @@ data GameEvent =
   deriving Show
 ```
 
-<!-- Der senkrechte Strich `|` zwischen den Klassen bedeutet "oder".   -->
 Das `HandsDealt`-Event trägt eine "Map" zwischen Spielernamen und ihren
 Karten mit sich.  Ein Verlauf des Spiels kann immer aus dessen Folge
 von Events rekonstruiert werden.
@@ -427,7 +423,7 @@ processGameCommand state (DealHands hands) =
 Da dieser Befehl von der "Spielleitung" kommt, führt er immer zu einem
 `HandsDealt`-Event.  Der Effekt des Events auf den Zustand wird durch
 die Funktion `processGameEvent` berechnet, deren Definition aus
-Platzgründen fehlt, deren Arbeitsweise sich wieder gut an der
+Platzgründen fehlt, aber deren Arbeitsweise sich wieder gut an der
 Typsignatur ablesen lässt:
 
 ```haskell
@@ -495,7 +491,7 @@ schnell ein Attribut verändern oder - speziell in Haskell - externe
 Effekte auslösen, weil es gerade so passt.  Stattdessen führen neue
 Zustände immer gleich zu neuen Objekten und alle Effekte müssen
 explizit deklariert werden.  Das ist für Entwicklerinnen mit
-OO-Hintergrund erst einmal gewöhnungsbedürftig.  Diese Einschränkungen
+OO-Hintergrund gewöhnungsbedürftig.  Diese Einschränkungen
 bringen aber Verbesserungen der Architekturqualität mit sich: geringere
 Kopplung, weniger Abhängigkeiten, deklarierte und kontrollierte
 Effekte - das alles steigert die Robustheit, Flexibilität und
@@ -515,7 +511,7 @@ Wartbarkeit des Codes.
 
 [^6]: Die auch in Python Eingang gefunden hat.
 
-[^7]: Funktionale Programmierer sprechen von *curried functions* und *currying*, [`https://en.wikipedia.org/wiki/Currying`](https://en.wikipedia.org/wiki/Currying). 
+[^7]: Funktionale Programmierer sprechen von *curried functions* und *currying*, [`https://de.wikipedia.org/wiki/Currying`](https://de.wikipedia.org/wiki/Currying). 
 
 ## Michael Sperber
 
