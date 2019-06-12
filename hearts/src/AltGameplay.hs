@@ -147,24 +147,24 @@ processGameCommandM' (DealHands playerHands) =
       processAndPublishEvent (HandsDealt playerHands)
 processGameCommandM' (PlayCard playerName card) =
    do playIsValid <- playValidM playerName card
-      if playIsValid then do
-          processAndPublishEvent (CardPlayed playerName card)
-          turnIsOver <- turnOverM
-          if turnIsOver then do
-              trick <- currentTrickM
-              let trickTaker = whoTakesTrick trick
-              processAndPublishEvent (TrickTaken trickTaker trick)
-              gameIsOver <- gameOverM
-              if gameIsOver 
+      if playIsValid then
+        do processAndPublishEvent (CardPlayed playerName card)
+           turnIsOver <- turnOverM
+           if turnIsOver then
+             do trick <- currentTrickM
+                let trickTaker = whoTakesTrick trick
+                processAndPublishEvent (TrickTaken trickTaker trick)
+                gameIsOver <- gameOverM
+                if gameIsOver 
                 then processAndPublishEvent (GameOver)
                 else processAndPublishEvent (PlayerTurn trickTaker)
-            else do
-              nextPlayer <- nextPlayerM
-              processAndPublishEvent (PlayerTurn nextPlayer)
-        else do
-          nextPlayer <- nextPlayerM
-          processAndPublishEvent (IllegalMove nextPlayer)
-          processAndPublishEvent (PlayerTurn nextPlayer)
+           else
+             do nextPlayer <- nextPlayerM
+                processAndPublishEvent (PlayerTurn nextPlayer)
+      else
+        do nextPlayer <- nextPlayerM
+           processAndPublishEvent (IllegalMove nextPlayer)
+           processAndPublishEvent (PlayerTurn nextPlayer)
 
 processAndPublishEvent :: GameConstraints m => GameEvent -> m ()
 processAndPublishEvent gameEvent = do
