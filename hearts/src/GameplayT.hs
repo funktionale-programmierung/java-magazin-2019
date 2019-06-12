@@ -3,6 +3,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE RankNTypes #-}
 
 module GameplayT where
 
@@ -87,6 +88,10 @@ strategyPlay strategy playerName event =
 type EventSourcingT state event monad = StateT state (WriterT [event] monad)
 type MonadEventSourcing state event monad =
   (MonadState state monad, MonadWriter [event] monad)
+
+runEventSourcing :: (forall monad . MonadEventSourcing state event monad => monad ()) -> state -> (state, [event])
+runEventSourcing action state =
+  Writer.runWriter (State.execStateT action state)
 
 type MonadGameEventSourcing monad = MonadEventSourcing GameState GameEvent monad
 type GameEventSourcingT monad = EventSourcingT GameState GameEvent monad
@@ -175,7 +180,7 @@ gameCommandEventsM :: MonadGameEventSourcing monad => GameCommand -> monad [Game
 gameCommandEventsM gameCommand | trace ("gameCommandsEventsM " ++ show gameCommand) False = undefined
 gameCommandEventsM gameCommand =
   do gameState <- eventSourcingReadStateM
-     let (gameState', gameEvents) = processGameCommand gameCommand gameState
+     let (gameState', gameEvents) = runEventSourcing (processGameCommandM gameCommand) gameState
      mapM_ processGameEventM gameEvents
      return (trace ("gameEvents " ++ show gameEvents) gameEvents)
 
