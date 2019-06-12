@@ -307,7 +307,7 @@ makePlayerPackage playerName strategy =
 strategyPlayer :: PlayerName -> PlayerStrategy -> PlayerState -> PlayerEventProcessor
 strategyPlayer playerName strategy@(PlayerStrategy chooseCard) playerState =
   PlayerEventProcessor $ \ event -> do
-    (_, nextPlayerState) <- flip State.runStateT playerState $ do
+    nextPlayerState <- flip State.execStateT playerState $ do
       playerProcessGameEvent playerName event
       playerState <- State.get
       -- traceM ("** PLAYER " ++ playerName ++ ": " ++ show playerState)
@@ -343,7 +343,7 @@ makePlayerPackage' playerName strategy =
 strategyPlayer' :: PlayerName -> PlayerStrategy -> PlayerState -> PlayerPackage'
 strategyPlayer' playerName strategy@(PlayerStrategy chooseCard) playerState =
   PlayerPackage' playerName $ \ event -> do
-    (_, nextPlayerState) <- flip State.runStateT playerState $ do
+    nextPlayerState <- flip State.execStateT playerState $ do
       playerProcessGameEvent playerName event
       playerState <- State.get
       -- traceM ("** PLAYER " ++ playerName ++ ": " ++ show playerState)
