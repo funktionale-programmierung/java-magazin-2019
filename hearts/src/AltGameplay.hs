@@ -27,7 +27,7 @@ import qualified Shuffle
 type StrategyInterface m = (HasPlayerState m, MonadIO m)
 
 data PlayerStrategy
-  = PlayerStrategy (forall m . StrategyInterface m => m Card)
+  = PlayerStrategy { chooseCard :: forall m . StrategyInterface m => m Card }
 
 type PlayerInterface m = (MonadIO m, MonadWriter [GameCommand] m)
 
@@ -305,12 +305,11 @@ makePlayerPackage playerName strategy =
   PlayerPackage playerName $ strategyPlayer playerName strategy emptyPlayerState
 
 strategyPlayer :: PlayerName -> PlayerStrategy -> PlayerState -> PlayerEventProcessor
-strategyPlayer playerName strategy@(PlayerStrategy chooseCard) playerState =
+strategyPlayer playerName strategy playerState =
   PlayerEventProcessor $ \ event -> do
     nextPlayerState <- flip State.execStateT playerState $ do
       playerProcessGameEvent playerName event
       playerState <- State.get
-      -- traceM ("** PLAYER " ++ playerName ++ ": " ++ show playerState)
       case event of
         HandsDealt _ ->
           when (Set.member twoOfClubs (playerHand playerState)) $
@@ -318,8 +317,7 @@ strategyPlayer playerName strategy@(PlayerStrategy chooseCard) playerState =
 
         PlayerTurn turnPlayerName ->
           when (playerName == turnPlayerName) $ do
-            -- liftIO $ putStrLn ("Your turn, " ++ playerName)
-            card <- chooseCard
+            card <- chooseCard strategy
             Writer.tell [PlayCard playerName card]
 
         CardPlayed _ _ ->
@@ -341,12 +339,11 @@ makePlayerPackage' playerName strategy =
   strategyPlayer' playerName strategy emptyPlayerState
 
 strategyPlayer' :: PlayerName -> PlayerStrategy -> PlayerState -> PlayerPackage'
-strategyPlayer' playerName strategy@(PlayerStrategy chooseCard) playerState =
+strategyPlayer' playerName strategy playerState =
   PlayerPackage' playerName $ \ event -> do
     nextPlayerState <- flip State.execStateT playerState $ do
       playerProcessGameEvent playerName event
       playerState <- State.get
-      -- traceM ("** PLAYER " ++ playerName ++ ": " ++ show playerState)
       case event of
         HandsDealt _ ->
           when (Set.member twoOfClubs (playerHand playerState)) $
@@ -354,8 +351,7 @@ strategyPlayer' playerName strategy@(PlayerStrategy chooseCard) playerState =
 
         PlayerTurn turnPlayerName ->
           when (playerName == turnPlayerName) $ do
-            -- liftIO $ putStrLn ("Your turn, " ++ playerName)
-            card <- chooseCard
+            card <- chooseCard strategy
             Writer.tell [PlayCard playerName card]
 
         CardPlayed _ _ ->
