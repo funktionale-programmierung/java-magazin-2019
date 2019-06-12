@@ -545,6 +545,29 @@ Zustand, der für die folgenden Aktionen in der Variable `state` zur
 Verfügung steht. Die verbleibende `return` Aktion gibt den Zustand
 unverändert weiter und liefert als Ergebnis den Wert von `playValid`. 
 
+Auf die gleiche Art und Weise funktionieren auch die Aktionen `turnOverM`, `currentTrickM`,
+`gameOverM` und `nextPlayerM`. Die Funktion `ifM` funktioniert wie
+`if`, nur in einer Monade: Das erste Argument muss ein `Bool` liefern,
+daher hat es den Typ `m Bool`. Das zweite und dritte ("then" und
+"else") Argument hat jeweils den Typ `m a`, also die gleiche Monade
+mit dem gleichen Rückgabetyp `a`.
+
+Zum Schluss müssen wir noch die Events lokal verarbeiten und verschicken:
+
+```haskell
+processAndPublishEvent :: GameConstraints m => GameEvent -> m ()
+processAndPublishEvent gameEvent = do
+  State.modify (\state -> processGameEvent state gameEvent)
+  Writer.tell [gameEvent]
+```
+  
+Dafür wenden wir die vorher besprochene Funktion `processGameEvent`
+auf Zustand und Event an. Die Aktion `State.modify` besorgt den
+Zustand aus der Monade, übergibt ihn zur Änderung an
+`processGameEvent` und legt ihn wieder in die Monade zurück.
+Dann wird der Event an die Spieler kommuniziert. Die Aktion
+`Writer.tell` verwendert dafür den Ausgabeanteil der Monade. Aus
+technischen Gründen muss der Event in eine Liste verpackt werden.
 
 ## Fazit
 
