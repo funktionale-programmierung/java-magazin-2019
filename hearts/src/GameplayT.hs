@@ -1,3 +1,4 @@
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
@@ -84,66 +85,69 @@ strategyPlay strategy playerName event =
        TrickTaken name' trick -> return []
 
 type EventSourcingT state event monad = StateT state (WriterT [event] monad)
+type MonadEventSourcing state event monad =
+  (MonadState state monad, MonadWriter [event] monad)
 
+type MonadGameEventSourcing monad = MonadEventSourcing GameState GameEvent monad
 type GameEventSourcingT monad = EventSourcingT GameState GameEvent monad
 
-eventSourcingReadStateM :: Monad monad => EventSourcingT state event monad state
+eventSourcingReadStateM :: MonadEventSourcing state event monad => monad state
 eventSourcingReadStateM = State.get
 
-playerHandM :: Monad monad => PlayerName -> GameEventSourcingT monad Hand
+playerHandM :: MonadGameEventSourcing monad => PlayerName -> monad Hand
 playerHandM playerName =
   do state <- eventSourcingReadStateM
      return (gameStateHands state Map.! playerName)
 
-playerStackM :: Monad monad => PlayerName -> GameEventSourcingT monad (Set Card)
+playerStackM :: MonadGameEventSourcing monad => PlayerName -> monad (Set Card)
 playerStackM player =
   do state <- eventSourcingReadStateM
      return (gameStateStacks state Map.! player)
 
-trickM :: Monad monad => GameEventSourcingT monad Trick
+trickM :: MonadGameEventSourcing monad => monad Trick
 trickM =
   do state <- eventSourcingReadStateM
      return (gameStateTrick state)
 
-processGameEventM :: Monad monad => GameEvent -> GameEventSourcingT monad ()
+processGameEventM :: MonadGameEventSourcing monad => GameEvent -> monad ()
 processGameEventM event =
   do gameState <- State.get
      State.put (processGameEvent event gameState)
      Writer.tell [event]
      return ()
 
-whoTakesTrickM :: Monad monad => GameEventSourcingT monad (PlayerName, Trick)
+whoTakesTrickM :: MonadGameEventSourcing monad => monad (PlayerName, Trick)
 whoTakesTrickM = do
   state <- eventSourcingReadStateM
   let trick = gameStateTrick state
   return (whoTakesTrick trick, trick)
 
-turnOverM :: Monad monad => GameEventSourcingT monad Bool
+turnOverM :: MonadGameEventSourcing monad => monad Bool
 turnOverM = do
   state <- eventSourcingReadStateM
   return (turnOver state)
 
-gameOverM :: Monad monad => GameEventSourcingT monad Bool
+gameOverM :: MonadGameEventSourcing monad => monad Bool
 gameOverM = do
   state <- eventSourcingReadStateM
   return (gameOver state)
 
-playValidM :: Monad monad => PlayerName -> Card -> GameEventSourcingT monad Bool
+playValidM :: MonadGameEventSourcing monad => PlayerName -> Card -> monad Bool
 playValidM playerName card  =
   do state <- eventSourcingReadStateM
      return (playValid state playerName card)
 
-currentTrickM :: Monad monad => GameEventSourcingT monad Trick
+currentTrickM :: MonadGameEventSourcing monad => monad Trick
 currentTrickM =
   do state <- eventSourcingReadStateM
      return (gameStateTrick state)
 
-nextPlayerM :: Monad monad => GameEventSourcingT monad (PlayerName)
+nextPlayerM :: MonadGameEventSourcing monad => monad (PlayerName)
 nextPlayerM =
   do state <- eventSourcingReadStateM
      return (nextPlayer state)
 
-processGameCommandM :: Monad monad => GameCommand -> GameEventSourcingT monad ()
+processGameCommandM :: MonadGameEventSourcing monad => GameCommand -> monad ()
 processGameCommandM (DealHands playerHands) =
    processGameEventM (HandsDealt playerHands)
 processGameCommandM (PlayCard playerName card) =
@@ -167,7 +171,7 @@ processGameCommandM (PlayCard playerName card) =
            processGameEventM (IllegalMove nextPlayer)
            processGameEventM (PlayerTurn nextPlayer)
 
-gameCommandEventsM :: Monad monad => GameCommand -> GameEventSourcingT monad [GameEvent]
+gameCommandEventsM :: MonadGameEventSourcing monad => GameCommand -> monad [GameEvent]
 gameCommandEventsM gameCommand | trace ("gameCommandsEventsM " ++ show gameCommand) False = undefined
 gameCommandEventsM gameCommand =
   do gameState <- eventSourcingReadStateM
