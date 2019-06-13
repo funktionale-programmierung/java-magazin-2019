@@ -798,7 +798,7 @@ Protokolle.
 
 [^7]: Funktionale Programmierer sprechen von *curried functions* und *currying*, [`https://de.wikipedia.org/wiki/Currying`](https://de.wikipedia.org/wiki/Currying). 
 
-[^8] Das heißt nicht ganz: In Java gibt es ja die `throws`-Klausel an
+[^8]: Das heißt nicht ganz: In Java gibt es ja die `throws`-Klausel an
 Methoden, die besagt, welche Exceptions eine Funktion werfen kann.
 
 [^9]: `MonadIO m` ist ein vordefiniertes Constraint, das Zugriff zu
