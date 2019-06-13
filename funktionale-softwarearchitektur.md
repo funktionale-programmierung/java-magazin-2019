@@ -207,14 +207,15 @@ definiert.
 Einige Hilfsdefinitionen erleichtern den Umgang mit dem Typ `Hand`.
 Die Funktion `isHandEmpty` hat den Typ `Hand -> Bool`, was eine 
 "Funktion, die eine `Hand` als Eingabe nimmt und ein `Bool` als Ausgabe
-liefert" beschreibt:
+liefert" beschreibt.  In der Gleichung für `isHandEmpty` steht nach
+nach dem Funktionsname der Name des Parameters `hand`:
 
 ```haskell
 isHandEmpty :: Hand -> Bool
 isHandEmpty hand = Set.null hand
 ```
 
-Die Funktion `containsCard` ist nimmt zwei Argumente und prüft mit
+Die Funktion `containsCard` nimmt zwei Argumente und prüft mit
 Hilfe der Library-Funktion `Set.member`, ob eine
 gegebene Karte zu einer Hand gehört:
 
@@ -253,7 +254,7 @@ hand2 = removeCard card hand1
 ist `hand1` immer noch die "alte" Hand und `hand2` die neue.
 
 Das ist in Haskell nicht nur eine Konvention: Eine Funktion *kann* 
-nicht einfach so Objekte "verändern", es handelt es sich im Sprech der
+nicht einfach so Objekte "verändern", es handelt sich im Sprachgebrauch der
 funktionalen Programmierung immer um eine "reine" oder "pure"
 Funktion.  Diese *rein funktionale Programmierung* macht die Typsignatur
 enorm nützlich, weil sie alles aufführt, was in die Funktion
