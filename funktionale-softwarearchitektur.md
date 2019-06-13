@@ -741,11 +741,15 @@ muss ein Programm sie explizit durch `State.execStateT` mit einem
 Anfangszustand aufrufen und bekommt dann einen expliziten
 Resultatzustand zurück.
 
-## Fazit
+## Zusammenfassung
 
-FIXME: Wrap-up
+Es fehlen noch einige Funktionen, um die Spiellogik mit der
+Spielerlogik zu verdrahten.  Diese fehlen aus Platzgründen hier, aber
+der vollständige Code ist im github-Repositorium vorhanden.
 
-Funktionale Softwarearchitektur bedeutet erst einmal, dass ein
+Wichtig war uns zu demonstrieren, wie Monaden Effekte beschreiben und
+in den Typsignaturen einschränken.
+Funktionale Softwarearchitektur bedeutet dementsprechend erst einmal, dass ein
 Entwickler nicht so leicht Architekturprinzipien verletzen kann: Nicht mal so eben
 schnell ein Attribut verändern oder - speziell in Haskell - externe
 Effekte auslösen, weil es gerade so passt.  Stattdessen führen neue
