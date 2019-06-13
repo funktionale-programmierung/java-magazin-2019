@@ -621,7 +621,9 @@ Events entgegen und liefert als Antwort Kommandos, die an die
 Spiellogik weitergegeben werden. 
 
 Für die Implementierung der Spielerlogik verwenden wir wieder 
-Monaden, um FIXME explizit . Das heißt, jede Spielerin wird in einer abstrakten Monade
+Monaden, um die Formulierung zu erleichtern und gleichzeitig explizit
+zu machen, welcher Effekte sich eine Spielerin bedient.
+Das heißt, jede Spielerin wird in einer abstrakten Monade
 gestartet, von der sie nur weiß, dass sie Kommandos an die Spiellogik
 schicken kann und dass sie Zugriff auf I/O-Operationen hat - zum
 Beispiel um über ein GUI zu interagieren oder den Telefonjoker
