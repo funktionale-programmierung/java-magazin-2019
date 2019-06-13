@@ -658,72 +658,86 @@ Event-Prozessor Funktion, die ein `GameEvent` als Aktion in einer
 Spielermonade `m` interpretiert. Dieses `m` kann beliebig 
 gewählt werden (das wird durch das `forall m` ausgedrückt) und kann
 sich darauf verlassen, dass das `PlayerInterface` vom Aufrufer zur
-Verfügung gestellt wird, also das Gegenstück zu `GameInterface`.
+Verfügung gestellt wird, also das Gegenstück zu `GameInterface`. 
 
-Es bleibt die Implementierung einer Spielerin anzusehen. Zur
-Vereinfachung geben wir einen Typ `PlayerState` vor, der die aktuelle Hand
-und die abgelegten Karten der Spielerin nachhält. Weiter verwenden wir
-eine Funktion `playerProcessGameEvent`, die den Spielerzustand
-entsprechend der eingehenden Events ändert. Die einzig verbleibende
-Variable ist die Strategie, nach der die Spielerin eine Karte abwirft.
+In der Regel wird eine Spielerin im Spiel dazulernen wollen - also
+ihre Beobachtung des Spielverlaufs benutzen, um möglichst gute
+Spielzüge auszuwählen.  Dazu muss sie sich Dinge merken, und das tut
+sie, indem ihr `eventProcessor` ein neues `PlayerPackage`, das in der
+nächsten Runde ihre Stelle einnimmt.
+
+Es bleibt die Implementierung einer Spielerin. Eine "normale"
+Spielerin werden sich daran erinnern müssen, welche Karten sie auf der
+Hand hat und was auf dem Stich liegt.   Der Typ dazu sieht so aus:
 
 ```haskell
 data PlayerState =
   PlayerState { playerHand  :: Hand,
-                playerTrick :: Trick,
-                playerStack :: [Card] }
-
-playerProcessGameEventM :: (MonadState PlayerState m, PlayerInterface m) => PlayerName -> GameEvent -> m ()
-
-type StrategyInterface m = (MonadState PlayerState m, MonadIO m)
-
-data PlayerStrategy
-  = PlayerStrategy { chooseCard :: forall m . StrategyInterface m => m Card }
+                playerTrick :: Trick }
 ```
 
-Der Typ der `PlayerStrategy` zeigt, dass die Strategie lediglich auf
-`PlayerState` und auf I/O zurückgreifen kann um eine Karte
-auszuwählen. Die Strategie wird aufgerufen, nachdem die eingehenden
-Events verarbeitet worden sind:
+Weiter verwenden wir eine Funktion `playerProcessGameEventM`, die den
+Spielerzustand entsprechend der eingehenden Events ändert.  Auch
+dieses "Gedächtnis" muss explizit angegeben und verwaltet werden.
+Dazu dient die Funktion `playerProcessGameEventM`, die neben dem
+normalen `PlayerInterface` auch noch einen `PlayerState` als Zustand
+mitführt:
 
 ```haskell
-strategyPlayer :: PlayerName -> PlayerStrategy -> PlayerState -> PlayerPackage
-strategyPlayer playerName strategy playerState =
-  PlayerPackage playerName $ \ event -> do
-    nextPlayerState <- flip State.execStateT playerState $ do
-      playerProcessGameEventM playerName event
-      playerState <- State.get
-      case event of
-        HandsDealt _ ->
-          when (Set.member twoOfClubs (playerHand playerState)) $
-            Writer.tell [PlayCard playerName twoOfClubs]
-
-        PlayerTurn turnPlayerName ->
-          when (playerName == turnPlayerName) $ do
-            card <- chooseCard strategy
-            Writer.tell [PlayCard playerName card]
-
-        _ ->
-          return ()
-
-    return (strategyPlayer playerName strategy nextPlayerState)
+playerProcessGameEventM :: (MonadState PlayerState m, PlayerInterface m) => PlayerName -> GameEvent -> m ()
 ```
 
-Aus dem Code wird klar, dass die `PlayerPackage` eine Closure ist, die
-die `strategy` und den aktuellen `playerState` enthält. Intern erzeugt
-sie einen Event-Prozessor, der auf die abstrakte Monade mit dem
-`PlayerInterface` noch einen Zustandsanteil hinzufügt, der den
-`PlayerState` enthält (`State.execStateT playerState`). Der Code im
-darauf folgenden `do` kann demnach auch auf den Spielerzustand
-zugreifen und sein Endzustand wird in `nextPlayerState`
-festgehalten. Nachdem der Event im Spielerzustand abgebildet worden
-ist, folgt die spezifische Eventbearbeitung. Zu Beginn (`HandsDealt` Event)
-spielt die Spielerin mit der Kreuz Zwei auf. Ansonsten wählt die
-Spielerin gemäß der vorgegebenen Strategie (`chooseCard strategy`). In
-beiden Fällen wird ein entsprechendes `PlayCard` Kommando
-signalisiert. Da ja keine Veränderungen an Objekten möglich sind,
-erzeugt der `strategyPlayer` zum Schluss eine neue `PlayerPackage`, die
-den Zustand nach der Verarbeitung des Events festhält. 
+Der folgende Code implementiert eine Spielerin, die bei Spielbeginn
+die Kreuz Zwei ausspielt, falls sie sie hat und ansonsten eine
+passende Karte mit der Hilfsfunktion `playAlongCard` auswählt und
+diese ausspielt.  Um verschiedene Events zu unterscheiden, benutzt die
+Funktion ein `case`-Konstrukt, das analog zu `switch` in Java
+funktioniert - der letzte Zweig `_` entspricht dem Java-`default`.
+
+```haskell
+playAlongProcessEventM :: (MonadState PlayerState m, PlayerInterface m) => PlayerName -> GameEvent -> m ()
+playAlongProcessEventM playerName event =
+  do playerProcessGameEventM playerName event
+     playerState <- State.get
+     case event of
+       HandsDealt _ ->
+         if Set.member twoOfClubs (playerHand playerState)
+         then Writer.tell [PlayCard playerName twoOfClubs]
+         else return ()
+
+       PlayerTurn turnPlayerName ->
+         if playerName == turnPlayerName
+         then do card <- playAlongCard
+                 Writer.tell [PlayCard playerName card]
+         else  return ()
+
+       _ -> return ()
+```
+
+Diese Spielstrategie wird von der folgenden Funktion in einem
+ `PlayerPackage`-Objekt verpackt.  Diese akzeptiert einen expliziten
+Zustand vom Typ `PlayerState`.  Dieser wird mit Hilfe der eingebauten
+Funktion  `State.execStateT` explizit in `playAlongProcessEventM`
+gefüttert und auch wieder herausgeholt, unter dem Namen
+ `nextPlayerState` - und der wird dann im nächsten `PlayerPackage`
+ verwendet.  
+
+```haskell
+playAlongPlayer :: PlayerName -> PlayerState -> PlayerPackage
+playAlongPlayer playerName playerState =
+  let nextPlayerM event =
+        do nextPlayerState <- 
+		     State.execStateT (playAlongProcessEventM playerName event) playerState
+           return (playAlongPlayer playerName nextPlayerState)
+  in PlayerPackage playerName nextPlayerM
+```
+
+Der Aufruf `State.execStateT` zeigt, dass `playAlongProcessEventM`
+trotz der monadischen Form eine "ganz normale" Funktion ist. Sie
+mutiert keine Variablen wie das in Java der Fall wäre.  Stattdessen
+muss ein Programm sie explizit durch `State.execStateT` mit einem
+Anfangszustand aufrufen und bekommt dann einen expliziten
+Resultatzustand zurück.
 
 ## Fazit
 
