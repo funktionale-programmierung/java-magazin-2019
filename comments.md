@@ -13,7 +13,7 @@ Den Begriff "Softwarearchitektur" kann man auf zweierlei Art lesen
 
 Unsere Bedeutung ist 1. Aber ist das nicht eher Entwurf/Design und die Architektur ist das Ergebnis?
 
-## Leseransprache
+## NOT DONE Leseransprache
 
 Wir könnten den Haskell-geneigten Lesern als Übungsaufgabe den Entwurf neuer Strategien vorschlagen.
 
