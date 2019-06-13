@@ -336,6 +336,27 @@ strategyPlayer playerName strategy playerState =
 
     return (strategyPlayer playerName strategy nextPlayerState)
 
+{-
+playAlongPlayer :: PlayerName -> PlayerState -> PlayerEventProcessor
+playAlongPlayer playerName playerState =
+  PlayerEventProcessor $ \ event -> do
+    nextPlayerState <- flip State.execStateT playerState $ do
+      playerProcessGameEventM playerName event
+      playerState <- State.get
+      case event of
+        HandsDealt _ ->
+          when (Set.member twoOfClubs (playerHand playerState)) $
+            Writer.tell [PlayCard playerName twoOfClubs]
+
+        PlayerTurn turnPlayerName ->
+          when (playerName == turnPlayerName) $ do
+            card <- playAlongStrategy'
+            Writer.tell [PlayCard playerName card]
+
+        _ -> return ()
+    return (playAlongPlayer playerName nextPlayerState)
+-}
+
 makePlayerPackage' :: PlayerName -> PlayerStrategy -> PlayerPackage'
 makePlayerPackage' playerName strategy =
   strategyPlayer' playerName strategy emptyPlayerState
@@ -370,11 +391,54 @@ strategyPlayer' playerName strategy playerState =
 
     return (strategyPlayer' playerName strategy nextPlayerState)
 
+playAlongProcessEventM :: (MonadState PlayerState m, PlayerInterface m) => PlayerName -> GameEvent -> m ()
+playAlongProcessEventM playerName event =
+  do playerProcessGameEventM playerName event
+     playerState <- State.get
+     case event of
+       HandsDealt _ ->
+         if Set.member twoOfClubs (playerHand playerState)
+         then Writer.tell [PlayCard playerName twoOfClubs]
+         else return ()
+
+       PlayerTurn turnPlayerName ->
+         if playerName == turnPlayerName
+         then do card <- playAlongCard'
+                 Writer.tell [PlayCard playerName card]
+         else  return ()
+
+       _ -> return ()
+
+playAlongPlayer' :: PlayerName -> PlayerState -> PlayerPackage'
+playAlongPlayer' playerName playerState =
+  let nextPlayerM event =
+        do nextPlayerState <- State.execStateT (playAlongProcessEventM playerName event) playerState
+           return (playAlongPlayer' playerName nextPlayerState)
+  in PlayerPackage' playerName nextPlayerM
 
 -- stupid robo player
 playAlongStrategy :: PlayerStrategy
 playAlongStrategy =
   PlayerStrategy $ do
+  playerState <- State.get
+  let trick = playerTrick playerState
+      hand = playerHand playerState
+      firstCard = leadingCardOfTrick trick
+      firstSuit = suit firstCard
+      followingCardsOnHand = Set.filter ((== firstSuit) . suit) hand
+  if trickEmpty trick 
+    then
+      return (Set.findMin hand)
+    else
+      case Set.lookupMin followingCardsOnHand of
+        Nothing ->
+          return (Set.findMax hand) -- any card is fine, so try to get rid of high hearts
+        Just card ->
+          return card           -- otherwise use the minimal following card
+
+playAlongCard' :: (HasPlayerState m, MonadIO m) => m Card
+playAlongCard' =
+ do
   playerState <- State.get
   let trick = playerTrick playerState
       hand = playerHand playerState
