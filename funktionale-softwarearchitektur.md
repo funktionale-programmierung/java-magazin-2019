@@ -480,18 +480,35 @@ sequenziellen Prozess abbildet, und dem wäre besser durch eine
 sequenzielle Notation gedient.
 
 Sequenzieller Prozesse lassen sich gut durch *Monaden* beschreiben,
-ein typisch funktionales Architekturmuster.  Mit Monaden entstehen
+ein typisch funktionales Entwurfsmuster.  Mit Monaden entstehen
 immer noch Funktionen, aber die Notation wechselt in eine sequenzielle
-Form, die z.B. den Zustand automatisch weiterreicht.
+Form.  Diese hat Zugriff auf einen *Kontext*, der sowohl gelesen als
+auch beschrieben werden kann.  Anders als in Java aber ist genau
+definiert, was in dem Kontext alles steht und was also  die monadische
+Form kann und was nicht.
 
-In monadischer Form lässt sich die Funktion für `PlayCard` wie folgt
-hinschreiben:
+Es folgt eine monadische Version von `processGameCommandM`.  Sie
+unterscheidet sich von der "funktionalen Version" folgendermaßen:
+
+* Der Zustand und die "Event-Liste" sind implizit.
+* Die Hilfsfunktion `processAndPublishEventM` verarbeitet den Effekt
+  eines Events auf den Zustand und "speichert" das Event ab.
+* An die Stelle der Hilfsfunktionen `playValid`, `turnOver`,
+  `currentTrick`, `gameOver` treten monadische Versionen mit `M`
+  hinten am Namen jeweils ohne `state`-Argument, die den Spielzustand
+  aus dem Kontext beziehen.
+* Wenn mehrere monadische Aktionen hintereinander laufen, werden sie
+  in einem `do`-Block untergebracht, ähnlich der geschweiften Klammern
+  in Java.  Dort wird `<-` benutzt, um das Ergebnis einer monadischen
+  Operation an eine Variable zu binden.
+  
+Das Ergebnis sieht zumindest strukturell fast wie ein Java-Programm
+aus:
 
 ```haskell
-processGameCommandM :: GameInterface m => GameCommand -> m ()
 processGameCommandM (DealHands playerHands) =
   processAndPublishEventM (HandsDealt playerHands)
-processGameCommandM'' (PlayCard playerName card) =
+processGameCommandM (PlayCard playerName card) 
   ifM (playValidM playerName card)
     (do
       processAndPublishEventM (CardPlayed playerName card)
@@ -503,35 +520,46 @@ processGameCommandM'' (PlayCard playerName card) =
           ifM gameOverM
             (processAndPublishEventM (GameOver))
             (processAndPublishEventM (PlayerTurn trickTaker)))
-       (do                     -- not turnOver
-         nextPlayer <- nextPlayerM
-         processAndPublishEventM (PlayerTurn nextPlayer)))
-    (do                        -- not playValid
+        (do                     -- not turnOver
+          nextPlayer <- nextPlayerM
+          processAndPublishEventM (PlayerTurn nextPlayer)))
+    (do                         -- not playValid
       nextPlayer <- nextPlayerM
       processAndPublishEventM (IllegalMove nextPlayer)
       processAndPublishEventM (PlayerTurn nextPlayer))
 ```
 
-Die monadische Form beschreibt eine Abfolge von Aktionen, die
-vom Ergebnis vorangegangener Aktionen abhängen dürfen. Diese Aktionen
-werden in einer Monade `m` interpretiert, die verschiedene Features
-haben kann. Im vorliegenden Beispiel werden diese Features durch
-`GameInterface m` angegeben; die Funktion selbst erwartet wie gehabt
-ein `GameCommand` und liefert eine Aktion vom Typ `m ()`. Dabei ist
-`m` eine Monade, aber der Typ von `processGameCommandM` gibt keine konkrete Implementierung vor,
-sondern listet nur die Features von `m` auf, die `processGameCommandM`
-verwenden darf. In unserem Fall sind das zwei Features:
+Die Funktion sieht zwar aus, als würde sie Änderungen *machen* -
+tatsächlich aber liefert sie nur eine *Beschreibung* dieser
+Änderungen.  Und die sind durch den Typ der Funktion eingeschränkt:
+
+```haskell
+processGameCommandM :: GameInterface m => GameCommand -> m ()
+```
+
+Das lässt sich folgermaßen lesen: Wenn der Typ `m` eine monadische
+Berechnung implementiert, die das `GameInterface` erfüllt, so macht
+die Funktion `processGameCommandM` (vorsicht: der Pfeil hinter
+`GameInterface m` ist doppelt - davor stehen die Anforderungen an die
+Monade) aus einem `GameCommand` eine monadische Berechnung.  Das `()`
+steht für "kein explizites Ergebnis" - die Ergebnisse sind alle
+implizit.
+
+`GameInterface` hat folgende Definition:
 
 ```haskell
 type GameInterface m = (MonadState GameState m, MonadWriter [GameEvent] m)
 ```
 
-Der Zustandsanteil `MonadState` sorgt dafür, dass jede Aktion auf den aktuellen
-`GameState` zugreifen und ihn ändern kann. Über den Ausgabeanteil `MonadWriter` kann eine Aktion
-`GameEvent`s an den Kontext schicken.
+Dies ist eine Liste von zwei Features, die `processGameCommandM`
+benutzen darf - sie darf auf den Spielzustand zugreifen (`MonadState
+GameState`) und sie darf `GameEvent`s bekannt geben.  Mehr *kann*
+`processGameCommandM` nicht tun.  Da ist also der wesentliche
+Unterschied zu Java.
 
 Da der Zustand nicht mehr explizit herumgereicht wird, muss sich eine
-Aktion wie `playValidM` den aktuellen `GameState` besorgen:
+Aktion wie `playValidM` den aktuellen `GameState` erst besorgen, in
+dem sie die Operation `State.get` benutzt, die zu `MonadState` gehört:
 
 ```haskell
 playValidM :: MonadState GameState m => PlayerName -> Card -> m Bool
@@ -540,38 +568,37 @@ playValidM playerName card = do
   return (playValid state playerName card)
 ```
 
-Offenbar hat die Funktion `playValidM` noch weniger Anforderungen an
+Die Funktion `playValidM` hat noch weniger Anforderungen an
 die Monade, denn sie verlangt nur den Zustandsanteil.
-Dabei bewirkt das `do`, dass die Aktionen in den beiden folgenden Zeilen hintereinander
-ausgeführt werden. Die Aktion `state <- State.get` besorgt den aktuellen
+Die Aktion `state <- State.get` besorgt den aktuellen
 Zustand, der für die folgenden Aktionen in der Variable `state` zur
 Verfügung steht. Die verbleibende `return` Aktion gibt den Zustand
 unverändert weiter und liefert als Ergebnis den Wert von `playValid`. 
 
 Auf die gleiche Art und Weise funktionieren auch die Aktionen `turnOverM`, `currentTrickM`,
-`gameOverM` und `nextPlayerM`, die allesamt Informationen aus dem
-Zustand projezieren. Die Funktion `ifM` funktioniert wie
-`if`, nur in einer Monade: Alle Argumente sind Aktionen. Das erste Argument muss ein `Bool` liefern,
-daher hat es den Typ `m Bool`. Das zweite und dritte ("then" und
-"else") Argument hat jeweils den Typ `m a`, also die gleiche Monade
-mit dem gleichen Rückgabetyp `a`.
+`gameOverM` und `nextPlayerM`.
 
 Zum Schluss müssen wir noch die Events lokal verarbeiten und verschicken:
 
 ```haskell
 processAndPublishEventM :: GameInterface m => GameEvent -> m ()
-processAndPublishEventM gameEvent = do
-  processGameEventM gameEvent
-  Writer.tell [gameEvent]
+processAndPublishEventM gameEvent =
+  do processGameEventM gameEvent
+     Writer.tell [gameEvent]
 ```
-  
+
+Diese Funktion benutzt eine monadische Version von `processGameEvent`
+sowie das andere Feature in `GameInterface` - `MonadWriter`, wo es
+eine Funktion `Writer.tell` gibt, die das Event speichert und bekannt
+gibt.
+
+FIXME, entweder den Code listen oder die Erklärung streichen:
+
 Dafür wenden wir die vorher besprochene Funktion `processGameEvent`
 auf Zustand und Event an. Die Aktion `State.modify` besorgt den
 Zustand aus der Monade, übergibt ihn zur Änderung an
 `processGameEvent` und legt ihn wieder in die Monade zurück.
-Dann wird der Event an die Spieler kommuniziert. Die Aktion
-`Writer.tell` verwendert dafür den Ausgabeanteil der Monade. Aus
-technischen Gründen muss der Event in eine Liste verpackt werden.
+Dann wird der Event an die Spieler kommuniziert.
 
 ## Spielerlogik
 
