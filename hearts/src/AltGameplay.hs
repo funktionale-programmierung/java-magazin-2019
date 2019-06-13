@@ -239,8 +239,8 @@ processAndPublishEventM gameEvent = do
 
 processGameEventM :: GameInterface m => GameEvent -> m ()
 processGameEventM (HandsDealt playerHands) =
-  State.modify (\state -> state { gameStateHands = playerHands })
-  -- no good to broadcast this event as everybody knows everybody else's hand
+  do gameState <- State.get
+     State.put (gameState { gameStateHands = playerHands })
 
 processGameEventM (CardPlayed playerName card) =
   State.modify (\state ->
@@ -273,8 +273,8 @@ modifyHand  f = State.modify (\playerState -> playerState { playerHand = f (play
 modifyTrick f = State.modify (\playerState -> playerState { playerTrick = f (playerTrick playerState)})
 modifyStack f = State.modify (\playerState -> playerState { playerStack = f (playerStack playerState)})
 
-playerProcessGameEvent :: (HasPlayerState m, PlayerInterface m) => PlayerName -> GameEvent -> m ()
-playerProcessGameEvent playerName gameEvent = do
+playerProcessGameEventM :: (HasPlayerState m, PlayerInterface m) => PlayerName -> GameEvent -> m ()
+playerProcessGameEventM playerName gameEvent = do
   case gameEvent of
     HandsDealt hands ->
       State.put (PlayerState { playerHand = hands ! playerName,
@@ -310,7 +310,7 @@ strategyPlayer :: PlayerName -> PlayerStrategy -> PlayerState -> PlayerEventProc
 strategyPlayer playerName strategy playerState =
   PlayerEventProcessor $ \ event -> do
     nextPlayerState <- flip State.execStateT playerState $ do
-      playerProcessGameEvent playerName event
+      playerProcessGameEventM playerName event
       playerState <- State.get
       case event of
         HandsDealt _ ->
@@ -344,7 +344,7 @@ strategyPlayer' :: PlayerName -> PlayerStrategy -> PlayerState -> PlayerPackage'
 strategyPlayer' playerName strategy playerState =
   PlayerPackage' playerName $ \ event -> do
     nextPlayerState <- flip State.execStateT playerState $ do
-      playerProcessGameEvent playerName event
+      playerProcessGameEventM playerName event
       playerState <- State.get
       case event of
         HandsDealt _ ->
