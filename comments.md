@@ -57,7 +57,7 @@ Abstraktionsbruchs vielleicht sogar noch größer aufgrund des
 allgegenwärtigen Pattern-Matching. (Tritt bisher auch noch nicht im
 Code auf.)
 
-## Kartenspiel modellieren
+## DONE Kartenspiel modellieren
 
 Der Abschnitt ist zu lang und könnte unterteilt werden.
 

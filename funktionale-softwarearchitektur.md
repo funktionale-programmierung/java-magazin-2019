@@ -125,7 +125,7 @@ Einschränkung bietet enorme Vorteile:
 Aus den gleichen Gründen ist in Java das Programmieren mit
 Value-Objekten oft nützlich.
   
-## Kartenspiel modellieren
+## Karten modellieren
 
 Die konkrete Modellierung beginnt mit den Spielkarten.  Der
 folgende Datentyp `Card` ist ein Record-Typ (analog zu einem POJO in Java)
@@ -165,6 +165,8 @@ und Komma geschrieben, Klammern dienen nur zum Gruppieren.
 
 Die Deklaration von `Cards` definiert auch die "Getter-Funktionen" `suit` und
 `rank`, die wie Funktionen verwendet werden. 
+
+## Kartenspiele und Hände
 
 Für Hearts wird ein kompletter Satz Karten benötigt.  Der wird durch
 folgende Definitionen generiert, die jeweils eine Liste aller Farben,
@@ -267,6 +269,8 @@ hineingeht und wieder hinausgeht: Es gibt keine versteckten
 Abhängigkeiten zu globalem Zustand und alle Ausgaben stehen hinter dem
 rechten Pfeil der Signatur. Daher sind die rechten und linken Seiten
 einer Definitionsgleichung überall im Programm jederzeit austauschbar.
+
+## Typvariablen und Higher-Order-Funktionen
 
 Da Hearts ein sogenanntes "Stichspiel" ist, hat der Code einen Typ für
 den Stich, auf englisch "Trick".  Dieser muss mitführen, wer welche
