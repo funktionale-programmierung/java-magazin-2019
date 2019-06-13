@@ -496,7 +496,8 @@ unterscheidet sich von der "funktionalen Version" folgendermaßen:
 * An die Stelle der Hilfsfunktionen `playValid`, `turnOver`,
   `currentTrick`, `gameOver` treten monadische Versionen mit `M`
   hinten am Namen jeweils ohne `state`-Argument, die den Spielzustand
-  aus dem Kontext beziehen.
+  aus dem Kontext beziehen.  Auch anstelle des "normalen" `if` tritt
+  die monadische Version `ifM`.
 * Wenn mehrere monadische Aktionen hintereinander laufen, werden sie
   in einem `do`-Block untergebracht, ähnlich der geschweiften Klammern
   in Java.  Dort wird `<-` benutzt, um das Ergebnis einer monadischen
@@ -531,7 +532,7 @@ processGameCommandM (PlayCard playerName card)
 
 Die Funktion sieht zwar aus, als würde sie Änderungen *machen* -
 tatsächlich aber liefert sie nur eine *Beschreibung* dieser
-Änderungen.  Und die sind durch den Typ der Funktion eingeschränkt:
+Änderungen. FIXME was passiert mit  der Beschreibung. Und die sind durch den Typ der Funktion eingeschränkt:
 
 ```haskell
 processGameCommandM :: GameInterface m => GameCommand -> m ()
@@ -553,7 +554,7 @@ implizit.
 type GameInterface m = (MonadState GameState m, MonadWriter [GameEvent] m)
 ```
 
-Dies ist eine Liste von zwei Features, die `processGameCommandM`
+Das `GameInterface` enthält zwei Features, die `processGameCommandM`
 benutzen darf - sie darf auf den Spielzustand zugreifen (`MonadState
 GameState`) und sie darf `GameEvent`s bekannt geben.  Mehr *kann*
 `processGameCommandM` nicht tun.  Da ist also der wesentliche
@@ -580,7 +581,8 @@ unverändert weiter und liefert als Ergebnis den Wert von `playValid`.
 Auf die gleiche Art und Weise funktionieren auch die Aktionen `turnOverM`, `currentTrickM`,
 `gameOverM` und `nextPlayerM`.
 
-Zum Schluss müssen wir noch die Events lokal verarbeiten und verschicken:
+Die Funktion `processAndPublishEventM` verarbeitet Events und
+verschickt sie:
 
 ```haskell
 processAndPublishEventM :: GameInterface m => GameEvent -> m ()
