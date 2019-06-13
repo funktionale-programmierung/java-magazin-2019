@@ -35,25 +35,25 @@ data PlayerEventProcessor =
   PlayerEventProcessor (forall m . PlayerInterface m =>
                          GameEvent -> m PlayerEventProcessor)
 
-data PlayerPackage = 
-  PlayerPackage
+data Player = 
+  Player
   { playerName :: PlayerName
   , eventProcessor :: PlayerEventProcessor
   }
 
-data PlayerPackage' = 
-  PlayerPackage'
+data Player' = 
+  Player'
   { playerName' :: PlayerName
-  , eventProcessor' :: forall m . PlayerInterface m => GameEvent -> m PlayerPackage'
+  , eventProcessor' :: forall m . PlayerInterface m => GameEvent -> m Player'
   }
 
 -- main entry point
-runGame :: [PlayerPackage] -> IO ()
+runGame :: [Player] -> IO ()
 runGame players = do
   -- create game state monad on top of IO
   State.evalStateT (startController players) emptyGameState
 
-runGame' :: [PlayerPackage'] -> IO ()
+runGame' :: [Player'] -> IO ()
 runGame' players = do
   -- create game state monad on top of IO
   State.evalStateT (startController' players) emptyGameState
@@ -64,7 +64,7 @@ type GameInterface m = (MonadState GameState m, MonadWriter [GameEvent] m)
 
 type ControllerInterface m = (MonadIO m, MonadState GameState m)
 
-startController :: ControllerInterface m => [PlayerPackage] -> m ()
+startController :: ControllerInterface m => [Player] -> m ()
 startController players = do
   -- setup game state
   let playerNames = map playerName players
@@ -75,7 +75,7 @@ startController players = do
   let hands = Map.fromList (zip playerNames (map Set.fromList (Shuffle.distribute (length playerNames) shuffledCards)))
   gameController players [DealHands hands]
 
-startController' :: ControllerInterface m => [PlayerPackage'] -> m ()
+startController' :: ControllerInterface m => [Player'] -> m ()
 startController' players = do
   -- setup game state
   let playerNames = map playerName' players
@@ -109,8 +109,8 @@ gameOverM :: HasGameState m => m Bool
 gameOverM =
   fmap gameOver State.get
 
-runPlayer' :: PlayerInterface m => PlayerPackage' -> GameEvent -> m PlayerPackage'
-runPlayer' (PlayerPackage' p f) gameEvent = f gameEvent
+runPlayer' :: PlayerInterface m => Player' -> GameEvent -> m Player'
+runPlayer' (Player' p f) gameEvent = f gameEvent
 
 runPlayer :: PlayerInterface m => PlayerEventProcessor -> GameEvent -> m PlayerEventProcessor
 runPlayer (PlayerEventProcessor f) gameEvent =
@@ -145,7 +145,7 @@ announceEvent (GameOver) = do
 announceEvent gameEvent =
   liftIO $ putStrLn (show gameEvent)
 
-gameController :: ControllerInterface m => [PlayerPackage] -> [GameCommand] -> m ()
+gameController :: ControllerInterface m => [Player] -> [GameCommand] -> m ()
 gameController players commands = do
   -- traceM ("** INCOMING COMMANDS " ++ show commands) 
   events <- Writer.execWriterT $ mapM_ processGameCommandM' commands
@@ -160,7 +160,7 @@ gameController players commands = do
   unless (null commands') $
     gameController players' commands'
 
-gameController' :: ControllerInterface m => [PlayerPackage'] -> [GameCommand] -> m ()
+gameController' :: ControllerInterface m => [Player'] -> [GameCommand] -> m ()
 gameController' players commands = do
   -- traceM ("** INCOMING COMMANDS " ++ show commands) 
   events <- Writer.execWriterT $ mapM_ processGameCommandM' commands
@@ -302,9 +302,9 @@ playerProcessGameEventM playerName gameEvent = do
   -- st <- State.get
   -- traceM ("** AFTER PLAYERPROCESSGAMEEVENT " ++ playerName ++ " " ++ show gameEvent ++ ": " ++ show st)
 
-makePlayerPackage :: PlayerName -> PlayerStrategy -> PlayerPackage
-makePlayerPackage playerName strategy =
-  PlayerPackage playerName $ strategyPlayer playerName strategy emptyPlayerState
+makePlayer :: PlayerName -> PlayerStrategy -> Player
+makePlayer playerName strategy =
+  Player playerName $ strategyPlayer playerName strategy emptyPlayerState
 
 strategyPlayer :: PlayerName -> PlayerStrategy -> PlayerState -> PlayerEventProcessor
 strategyPlayer playerName strategy playerState =
@@ -357,13 +357,13 @@ playAlongPlayer playerName playerState =
     return (playAlongPlayer playerName nextPlayerState)
 -}
 
-makePlayerPackage' :: PlayerName -> PlayerStrategy -> PlayerPackage'
-makePlayerPackage' playerName strategy =
+makePlayer' :: PlayerName -> PlayerStrategy -> Player'
+makePlayer' playerName strategy =
   strategyPlayer' playerName strategy emptyPlayerState
 
-strategyPlayer' :: PlayerName -> PlayerStrategy -> PlayerState -> PlayerPackage'
+strategyPlayer' :: PlayerName -> PlayerStrategy -> PlayerState -> Player'
 strategyPlayer' playerName strategy playerState =
-  PlayerPackage' playerName $ \ event -> do
+  Player' playerName $ \ event -> do
     nextPlayerState <- flip State.execStateT playerState $ do
       playerProcessGameEventM playerName event
       playerState <- State.get
@@ -409,12 +409,12 @@ playAlongProcessEventM playerName event =
 
        _ -> return ()
 
-playAlongPlayer' :: PlayerName -> PlayerState -> PlayerPackage'
+playAlongPlayer' :: PlayerName -> PlayerState -> Player'
 playAlongPlayer' playerName playerState =
   let nextPlayerM event =
         do nextPlayerState <- State.execStateT (playAlongProcessEventM playerName event) playerState
            return (playAlongPlayer' playerName nextPlayerState)
-  in PlayerPackage' playerName nextPlayerM
+  in Player' playerName nextPlayerM
 
 -- stupid robo player
 playAlongStrategy :: PlayerStrategy
@@ -475,18 +475,18 @@ playInteractive =
   selected <- liftIO $ getNumber (1,ncards)
   return (myhand !! (selected - 1))
       
-playerMike = makePlayerPackage "Mike" playAlongStrategy
-playerPeter = makePlayerPackage "Peter" playInteractive
-playerAnnette = makePlayerPackage "Annette" playAlongStrategy
-playerNicole = makePlayerPackage "Nicole" playAlongStrategy
+playerMike = makePlayer "Mike" playAlongStrategy
+playerPeter = makePlayer "Peter" playInteractive
+playerAnnette = makePlayer "Annette" playAlongStrategy
+playerNicole = makePlayer "Nicole" playAlongStrategy
 
 start :: IO ()
 start = runGame [playerNicole, playerAnnette, playerPeter, playerMike]
 
-playerMike' = makePlayerPackage' "Mike" playAlongStrategy
-playerPeter' = makePlayerPackage' "Peter" playInteractive
-playerAnnette' = makePlayerPackage' "Annette" playAlongStrategy
-playerNicole' = makePlayerPackage' "Nicole" playAlongStrategy
+playerMike' = makePlayer' "Mike" playAlongStrategy
+playerPeter' = makePlayer' "Peter" playInteractive
+playerAnnette' = makePlayer' "Annette" playAlongStrategy
+playerNicole' = makePlayer' "Nicole" playAlongStrategy
 
 start' :: IO ()
 start' = runGame' [playerNicole', playerAnnette', playerPeter', playerMike']
