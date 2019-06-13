@@ -354,7 +354,7 @@ data GameEvent =
 ```
 
 Das `HandsDealt`-Event trägt eine "Map" zwischen Spielernamen und ihren
-Karten mit sich.  Ein Verlauf des Spiels kann immer aus dessen Folge
+Karten mit sich.[^10]  Ein Verlauf des Spiels kann immer aus dessen Folge
 von Events rekonstruiert werden.
 
 Es gibt nur zwei Klassen von Commands:
@@ -806,3 +806,9 @@ allen I/O-Operationen erlaubt. Selbstverständlich kann man
 Einschränkungen definieren, sodass nur bestimmte I/O-Operationen
 zulässig sind.
 
+[^10]: `HandsDealt` ist als Domain-Event eigentlich ungünstig, weil
+    dieses an alle Spielerinnen verteilt wird, die so nicht nur ihre
+    eigene Hand erfahren, sonderen auch die der anderen.  Wir haben es
+    hier aus Gründen der Einfachheit gewählt, aber besser wären
+    separate `HandDealt`-Events für jeweils nur eine Spielerin, die
+    von denen jede Spielerin nur jeweils "ihres" bekommt.
