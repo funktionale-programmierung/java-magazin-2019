@@ -540,7 +540,13 @@ processGameCommandM (PlayCard playerName card)
 
 Die Funktion sieht zwar aus, als würde sie Änderungen *machen* -
 tatsächlich aber liefert sie nur eine *Beschreibung* dieser
-Änderungen. FIXME was passiert mit  der Beschreibung. Und die sind durch den Typ der Funktion eingeschränkt:
+Änderungen.  Diese Beschreibung muss dann explizit ausgewertet
+werden.  Im Fall von Zustand heißt das zum Beispiel, dass aus der
+Beschreibung eine Funktion wird, die einen Zustand als Eingabe
+akzeptiert und einen neuen Zustand als Ausgabe liefert.
+
+Welche Änderungen in der Monade gemacht werden können ist durch den
+Typ der Funktion eingeschränkt:
 
 ```haskell
 processGameCommandM :: GameInterface m => GameCommand -> m ()
@@ -724,12 +730,12 @@ playAlongProcessEventM playerName event =
 ```
 
 Diese Spielstrategie wird von der folgenden Funktion in einem
-`Player`-Objekt verpackt.  Diese akzeptiert einen expliziten
-Zustand vom Typ `PlayerState`.  Dieser wird mit Hilfe der eingebauten
-Funktion  `State.execStateT` explizit in `playAlongProcessEventM`
-gefüttert und auch wieder herausgeholt, unter dem Namen
- `nextPlayerState` - und der wird dann im nächsten `Player`
- verwendet.
+`Player`-Objekt verpackt.  Die Strategie akzeptiert einen expliziten
+Zustand vom Typ `PlayerState`.  Dies dazugehörige Beschreibung der
+Zustandsveränderung wird in `playAlongProcessEventM` mit Hilfe der
+eingebauten Funktion `State.execStateT` explizit gefüttert und auch
+wieder herausgeholt, unter dem Namen `nextPlayerState` - und der wird
+dann im nächsten `Player` verwendet.
 
 ```haskell
 playAlongPlayer :: PlayerName -> PlayerState -> Player
