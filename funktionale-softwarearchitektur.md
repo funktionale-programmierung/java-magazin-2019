@@ -537,12 +537,14 @@ tatsächlich aber liefert sie nur eine *Beschreibung* dieser
 processGameCommandM :: GameInterface m => GameCommand -> m ()
 ```
 
-Das lässt sich folgermaßen lesen: Wenn der Typ `m` eine monadische
-Berechnung implementiert, die das `GameInterface` erfüllt, so macht
-die Funktion `processGameCommandM` (vorsicht: der Pfeil hinter
-`GameInterface m` ist doppelt - davor stehen die Anforderungen an die
-Monade) aus einem `GameCommand` eine monadische Berechnung.  Das `()`
-steht für "kein explizites Ergebnis" - die Ergebnisse sind alle
+Der Typ zerfällt in zwei Teile, die durch den Doppelpfeil `=>`
+getrennt sind.  Im rechten Teil taucht eine Typvariable `m` auf,
+die für die Monade steht.  Links davon steht ein sogenannter
+*Constraint*, der sagt, was für Eigenschaften `m` haben muss.  In
+diesem Fall steht dort, dass `m` das Interface `GameInterface`
+erfüllen muss - dazu gleich.  Wenn dem so ist, so liefert
+`processGameCommandM` eine Berechnung, die `()` produziert, das steht
+für "kein explizites Ergebnis" - die Ergebnisse sind alle
 implizit.
 
 `GameInterface` hat folgende Definition:
@@ -555,7 +557,7 @@ Dies ist eine Liste von zwei Features, die `processGameCommandM`
 benutzen darf - sie darf auf den Spielzustand zugreifen (`MonadState
 GameState`) und sie darf `GameEvent`s bekannt geben.  Mehr *kann*
 `processGameCommandM` nicht tun.  Da ist also der wesentliche
-Unterschied zu Java.
+Unterschied zu Java.[^8]
 
 Da der Zustand nicht mehr explizit herumgereicht wird, muss sich eine
 Aktion wie `playValidM` den aktuellen `GameState` erst besorgen, in
@@ -587,18 +589,28 @@ processAndPublishEventM gameEvent =
      Writer.tell [gameEvent]
 ```
 
-Diese Funktion benutzt eine monadische Version von `processGameEvent`
-sowie das andere Feature in `GameInterface` - `MonadWriter`, wo es
-eine Funktion `Writer.tell` gibt, die das Event speichert und bekannt
-gibt.
+Die Funktion benutzt das andere Feature in `GameInterface` -
+`MonadWriter`, wo es eine Funktion `Writer.tell` gibt, die das Event
+speichert und bekannt gibt.  Außerdem benutzt sie die monadische
+Version von `processGameEvent` an, deren erste Gleichung
+folgendermaßen lautet:
 
-FIXME, entweder den Code listen oder die Erklärung streichen:
+```haskell
+processGameEventM :: GameInterface m => GameEvent -> m ()
+processGameEventM (HandsDealt playerHands) =
+  do gameState <- State.get
+     State.put (gameState { gameStateHands = playerHands })
+```
 
-Dafür wenden wir die vorher besprochene Funktion `processGameEvent`
-auf Zustand und Event an. Die Aktion `State.modify` besorgt den
-Zustand aus der Monade, übergibt ihn zur Änderung an
-`processGameEvent` und legt ihn wieder in die Monade zurück.
-Dann wird der Event an die Spieler kommuniziert.
+Sie holt sich also den impliziten Zustand und schreibt dann eine neue
+Version zurück, in der die verteilen Karten vermerkt sind.
+
+Alle Funktionen mit Effekten in solche monadische Form schreiben zu
+bringen ist manchmal anstrengend.  Es sorgt aber einerseits dafür,
+dass an den Funktionssignaturen deutlich zu sehen ist, welches Arsenal
+von Effekten sie benötigen.  Außerdem ist das Resultat jeweils immer
+noch eine Funktion, die unter kontrollierten Umständen aufgerufen
+werden kann.
 
 ## Spielerlogik
 
@@ -608,12 +620,12 @@ Events entgegen und liefert als Antwort Kommandos, die an die
 Spiellogik weitergegeben werden. 
 
 Für die Implementierung der Spielerlogik wollen wir maximale
-Freiheiten haben und verwenden dabei wieder das Architekturmuster der
+Freiheiten haben und verwenden dabei wieder 
 Monaden. Das heißt, jede Spielerin wird in einer abstrakten Monade
 gestartet, von der sie nur weiß, dass sie Kommandos an die Spiellogik
-schicken kann und dass sie Zugriff auf I/O-Operationen hat (zum
+schicken kann und dass sie Zugriff auf I/O-Operationen hat - zum
 Beispiel um über ein GUI zu interagieren oder den Telefonjoker
-anzurufen). Diese Features drücken wir 
+anzurufen. Diese Features drücken wir 
 wieder durch entsprechende Constraints aus:[^8]
 
 ```haskell
@@ -622,7 +634,7 @@ type PlayerInterface m = (MonadIO m, MonadWriter [GameCommand] m)
 
 Jede Spielerin kann nun für sich selbst entscheiden, welche weiteren
 Features sie lokal verwenden möchte. Typischerweise verwaltet jede
-Spielerin ihre eigene Version vom Spielzustand, weil sie **nicht** auf
+Spielerin ihre eigene Version vom Spielzustand, weil sie *nicht* auf
 den `GameState` der Spiellogik zugreifen kann. Die Ausgestaltung
 dieses Spielzustands ist der Spiellogik völlig gleichgültig und kann
 auch von jeder Spielerin anders gehandhabt werden. Das erreichen wir
@@ -646,8 +658,7 @@ Event-Prozessor Funktion, die ein `GameEvent` als Aktion in einer
 Spielermonade `m` interpretiert. Dieses `m` kann beliebig 
 gewählt werden (das wird durch das `forall m` ausgedrückt) und kann
 sich darauf verlassen, dass das `PlayerInterface` vom Aufrufer zur
-Verfügung gestellt wird.
-
+Verfügung gestellt wird, also das Gegenstück zu `GameInterface`.
 
 Es bleibt die Implementierung einer Spielerin anzusehen. Zur
 Vereinfachung geben wir einen Typ `PlayerState` vor, der die aktuelle Hand
@@ -657,9 +668,12 @@ entsprechend der eingehenden Events ändert. Die einzig verbleibende
 Variable ist die Strategie, nach der die Spielerin eine Karte abwirft.
 
 ```haskell
-data PlayerState = ...
+data PlayerState =
+  PlayerState { playerHand  :: Hand,
+                playerTrick :: Trick,
+                playerStack :: [Card] }
 
-playerProcessGameEvent :: (MonadState PlayerState m, PlayerInterface m) => PlayerName -> GameEvent -> m ()
+playerProcessGameEventM :: (MonadState PlayerState m, PlayerInterface m) => PlayerName -> GameEvent -> m ()
 
 type StrategyInterface m = (MonadState PlayerState m, MonadIO m)
 
@@ -677,7 +691,7 @@ strategyPlayer :: PlayerName -> PlayerStrategy -> PlayerState -> PlayerPackage
 strategyPlayer playerName strategy playerState =
   PlayerPackage playerName $ \ event -> do
     nextPlayerState <- flip State.execStateT playerState $ do
-      playerProcessGameEvent playerName event
+      playerProcessGameEventM playerName event
       playerState <- State.get
       case event of
         HandsDealt _ ->
@@ -725,27 +739,6 @@ Kopplung, weniger Abhängigkeiten, deklarierte und kontrollierte
 Effekte - das alles steigert die Robustheit, Flexibilität und
 Wartbarkeit des Codes.
 
-<!-- ## Quellen (Fußnoten) -->
-
-[^1]: [`https://www.haskell.org/`](https://www.haskell.org)
-
-[^2]: Michael Sperber, Herbert Klaeren: *Schreibe Dein Programm!*, [`https://www.deinprogramm.de`](https://www.deinprogramm.de/)
-
-[^3]: Hutton, Graham: *Programming in Haskell*, 2nd edition, 2016.
-
-[^4]: Hearts auf Wikipedia, [`https://de.wikipedia.org/wiki/Hearts`](https://de.wikipedia.org/wiki/Hearts)
-
-[^5]: Vaughn, Vernon: *Domain-Driven Design Distilled*, Pearson, 2016.
-
-[^6]: Die auch in Python Eingang gefunden hat.
-
-[^7]: Funktionale Programmierer sprechen von *curried functions* und *currying*, [`https://de.wikipedia.org/wiki/Currying`](https://de.wikipedia.org/wiki/Currying). 
-
-[^8]: `MonadIO m` ist ein vordefiniertes Constraint, das Zugriff zu
-allen I/O-Operationen erlaubt. Selbstverständlich kann man
-Einschränkungen definieren, sodass nur bestimmte I/O-Operationen
-zulässig sind.
-
 ## Michael Sperber
 
 [`michael.sperber@active-group.de`](mailto:michael.sperber@active-group.de)
@@ -770,4 +763,28 @@ anderen Themen der Softwaretechnik.
 Seine aktuelle Forschung beschäftigt sich mit statischen und
 dynamischen Analysemethoden für JavaScript sowie Typsystemen für
 Protokolle. 
+
+<!-- ## Quellen (Fußnoten) -->
+
+[^1]: [`https://www.haskell.org/`](https://www.haskell.org)
+
+[^2]: Michael Sperber, Herbert Klaeren: *Schreibe Dein Programm!*, [`https://www.deinprogramm.de`](https://www.deinprogramm.de/)
+
+[^3]: Hutton, Graham: *Programming in Haskell*, 2nd edition, 2016.
+
+[^4]: Hearts auf Wikipedia, [`https://de.wikipedia.org/wiki/Hearts`](https://de.wikipedia.org/wiki/Hearts)
+
+[^5]: Vaughn, Vernon: *Domain-Driven Design Distilled*, Pearson, 2016.
+
+[^6]: Die auch in Python Eingang gefunden hat.
+
+[^7]: Funktionale Programmierer sprechen von *curried functions* und *currying*, [`https://de.wikipedia.org/wiki/Currying`](https://de.wikipedia.org/wiki/Currying). 
+
+[^8] Das heißt nicht ganz: In Java gibt es ja die `throws`-Klausel an
+Methoden, die besagt, welche Exceptions eine Funktion werfen kann.
+
+[^9]: `MonadIO m` ist ein vordefiniertes Constraint, das Zugriff zu
+allen I/O-Operationen erlaubt. Selbstverständlich kann man
+Einschränkungen definieren, sodass nur bestimmte I/O-Operationen
+zulässig sind.
 
