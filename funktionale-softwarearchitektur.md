@@ -626,7 +626,7 @@ gestartet, von der sie nur weiß, dass sie Kommandos an die Spiellogik
 schicken kann und dass sie Zugriff auf I/O-Operationen hat - zum
 Beispiel um über ein GUI zu interagieren oder den Telefonjoker
 anzurufen. Diese Features drücken wir 
-wieder durch entsprechende Constraints aus:[^8]
+wieder durch entsprechende Constraints aus:[^9]
 
 ```haskell
 type PlayerInterface m = (MonadIO m, MonadWriter [GameCommand] m)
