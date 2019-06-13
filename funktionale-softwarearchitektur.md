@@ -84,7 +84,10 @@ Als Basis des Entwurfs verwenden wir ein klassisches taktisches Entwurfsmuster a
 *Domain-Driven Design*[^5] (DDD) und modellieren das Kartenspiel auf der
 Basis von *domain events*.   Die Event repräsentieren jedes Ereignis,
 das im Spielverlauf passiert ist - die Commands repräsentieren Wünsche
-der Beteiligten, dass etwas passiert.
+der Beteiligten, dass etwas passiert.  Die Architektur ist so offen
+für spätere Umstellung auf Client-Server-Betrieb, Mikroservices oder
+Event-Sourcing.
+
 Abbildung 1 zeigt den Ablauf: Jede Spielerin nimmt Events entgegen -
 was im Spiel gerade passiert ist - und generiert dafür
 Commands, die Spielzüge repräsentieren.  Die Spiellogik-Komponente
