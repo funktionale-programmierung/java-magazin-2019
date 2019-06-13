@@ -82,10 +82,12 @@ Herzkarte einen Punkt; alle weiteren Karten 0 Punkte.
 
 Als Basis des Entwurfs verwenden wir ein klassisches taktisches Entwurfsmuster aus dem
 *Domain-Driven Design*[^5] (DDD) und modellieren das Kartenspiel auf der
-Basis von *domain events*. 
-Abbildung 1 zeigt den Ablauf: Jede Spielerin nimmt Events entgegen,
-die den bisherigen Spielverlauf repräsentieren, und generiert dafür
-Commands, die Spielzüge repräsentieren.  Die "Gameplay"-Komponente
+Basis von *domain events*.   Die Event repräsentieren jedes Ereignis,
+das im Spielverlauf passiert ist - die Commands repräsentieren Wünsche
+der Beteiligten, dass etwas passiert.
+Abbildung 1 zeigt den Ablauf: Jede Spielerin nimmt Events entgegen -
+was im Spiel gerade passiert ist - und generiert dafür
+Commands, die Spielzüge repräsentieren.  Die Spiellogik-Komponente
 nimmt die Commands entgegen, überprüft sie auf Korrektheit (War die
 Spielerin überhaupt dran? War der Spielzug regelkonform?) und
 generiert ihrerseits daraus wieder Events.
