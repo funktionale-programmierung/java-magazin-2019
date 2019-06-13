@@ -46,7 +46,7 @@ Für die Abstraktionsfähigkeit in der funktionalen Sprache ist dies nur
 ein winziges Beispiel.  Sie potenziert aber ihre Fähigkeit im
 Zusammenhang mit den reinen Funktionen:
 
-## Bemerkung zum Ende vom "Modellieren"
+## NOT DONE Bemerkung zum Ende vom "Modellieren"
 
 Manche Aspekte der Softwareentwicklung sind sprachübergreifend und
 gelten sowohl für objektorientierte als auch für funktionale
