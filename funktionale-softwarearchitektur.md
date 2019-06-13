@@ -622,15 +622,15 @@ generiert, funktioniert die Spielerlogik genau andersherum. Sie nimmt
 Events entgegen und liefert als Antwort Kommandos, die an die
 Spiellogik weitergegeben werden. 
 
-Für die Implementierung der Spielerlogik verwenden wir wieder 
+Die Implementierung der Spielerlogik funktioniert wieder mit
 Monaden, um die Formulierung zu erleichtern und gleichzeitig explizit
 zu machen, welcher Effekte sich eine Spielerin bedient.
 Das heißt, jede Spielerin wird in einer abstrakten Monade
 gestartet, von der sie nur weiß, dass sie Kommandos an die Spiellogik
 schicken kann und dass sie Zugriff auf I/O-Operationen hat - zum
 Beispiel um über ein GUI zu interagieren oder den Telefonjoker
-anzurufen. Diese Features drücken wir 
-wieder durch entsprechende Constraints aus:[^9]
+anzurufen. Diese Features werden
+als Constraints ausgedrückt:[^9]
 
 ```haskell
 type PlayerInterface m = (MonadIO m, MonadWriter [GameCommand] m)
@@ -641,15 +641,15 @@ Features sie lokal verwenden möchte. Typischerweise verwaltet jede
 Spielerin ihre eigene Version vom Spielzustand, weil sie *nicht* auf
 den `GameState` der Spiellogik zugreifen kann. Die Ausgestaltung
 dieses Spielzustands ist der Spiellogik völlig gleichgültig und kann
-auch von jeder Spielerin anders gehandhabt werden. Das erreichen wir
-durch eine Konstruktion, die ähnlich wie ein Java-Interface
-funktioniert, aber darüber hinaus noch lokal erweiterbar ist:
+auch von jeder Spielerin anders gehandhabt werden. Diese Spielerlogik
+wird - natürlich - durch eine Funktion repräsentiert, die zusammen mit
+dem Namen der Spielerin in ein Record verpackt wird:
 
 ```haskell
 data Player = 
-  Player
-  { playerName :: PlayerName
-  , eventProcessor :: forall m . PlayerInterface m => GameEvent -> m Player
+  Player {
+    playerName :: PlayerName,
+    eventProcessor :: forall m . PlayerInterface m => GameEvent -> m Player
   }
 ```
 
@@ -676,7 +676,7 @@ data PlayerState =
                 playerTrick :: Trick }
 ```
 
-Weiter verwenden wir eine Funktion `playerProcessGameEventM`, die den
+Hilfreich ist die Funktion `playerProcessGameEventM`, die den
 Spielerzustand entsprechend der eingehenden Events ändert.  Auch
 dieses "Gedächtnis" muss explizit angegeben und verwaltet werden.
 Dazu dient die Funktion `playerProcessGameEventM`, die neben dem
