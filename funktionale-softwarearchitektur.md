@@ -489,23 +489,27 @@ hinschreiben:
 
 ```haskell
 processGameCommandM :: GameInterface m => GameCommand -> m ()
-processGameCommandM (PlayCard playerName card) =
-  ifM (playValidM playerName card) (do
-     processAndPublishEvent (CardPlayed playerName card)
-     ifM turnOverM (do
-       trick <- currentTrickM
-       let trickTaker = whoTakesTrick trick
-       processAndPublishEvent (TrickTaken trickTaker trick)
-       ifM gameOverM
-         (processAndPublishEvent (GameOver))
-         (processAndPublishEvent (PlayerTurn trickTaker)))
-      (do                     -- not turnOver
-       nextPlayer <- nextPlayerM
-       processAndPublishEvent (PlayerTurn nextPlayer)))
-  (do                        -- not playValid
-    nextPlayer <- nextPlayerM
-    processAndPublishEvent (IllegalMove nextPlayer)
-    processAndPublishEvent (PlayerTurn nextPlayer))
+processGameCommandM (DealHands playerHands) =
+  processAndPublishEventM (HandsDealt playerHands)
+processGameCommandM'' (PlayCard playerName card) =
+  ifM (playValidM playerName card)
+    (do
+      processAndPublishEventM (CardPlayed playerName card)
+      ifM turnOverM
+        (do
+          trick <- currentTrickM
+          let trickTaker = whoTakesTrick trick
+          processAndPublishEventM (TrickTaken trickTaker trick)
+          ifM gameOverM
+            (processAndPublishEventM (GameOver))
+            (processAndPublishEventM (PlayerTurn trickTaker)))
+       (do                     -- not turnOver
+         nextPlayer <- nextPlayerM
+         processAndPublishEventM (PlayerTurn nextPlayer)))
+    (do                        -- not playValid
+      nextPlayer <- nextPlayerM
+      processAndPublishEventM (IllegalMove nextPlayer)
+      processAndPublishEventM (PlayerTurn nextPlayer))
 ```
 
 Die monadische Form beschreibt eine Abfolge von Aktionen, die
@@ -555,9 +559,9 @@ mit dem gleichen Rückgabetyp `a`.
 Zum Schluss müssen wir noch die Events lokal verarbeiten und verschicken:
 
 ```haskell
-processAndPublishEvent :: GameInterface m => GameEvent -> m ()
-processAndPublishEvent gameEvent = do
-  State.modify (\state -> processGameEvent gameEvent state)
+processAndPublishEventM :: GameInterface m => GameEvent -> m ()
+processAndPublishEventM gameEvent = do
+  processGameEventM gameEvent
   Writer.tell [gameEvent]
 ```
   

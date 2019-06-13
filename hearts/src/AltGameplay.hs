@@ -183,55 +183,57 @@ processGameCommandM command =
 -- directly monadic version
 processGameCommandM' :: GameInterface m => GameCommand -> m ()
 processGameCommandM' (DealHands playerHands) =
-   processAndPublishEvent (HandsDealt playerHands)
+   processAndPublishEventM (HandsDealt playerHands)
 processGameCommandM' (PlayCard playerName card) =
    do playIsValid <- playValidM playerName card
       if playIsValid then
-        do processAndPublishEvent (CardPlayed playerName card)
+        do processAndPublishEventM (CardPlayed playerName card)
            turnIsOver <- turnOverM
            if turnIsOver then
              do trick <- currentTrickM
                 let trickTaker = whoTakesTrick trick
-                processAndPublishEvent (TrickTaken trickTaker trick)
+                processAndPublishEventM (TrickTaken trickTaker trick)
                 gameIsOver <- gameOverM
                 if gameIsOver 
-                then processAndPublishEvent (GameOver)
-                else processAndPublishEvent (PlayerTurn trickTaker)
+                then processAndPublishEventM (GameOver)
+                else processAndPublishEventM (PlayerTurn trickTaker)
            else
              do nextPlayer <- nextPlayerM
-                processAndPublishEvent (PlayerTurn nextPlayer)
+                processAndPublishEventM (PlayerTurn nextPlayer)
       else
         do nextPlayer <- nextPlayerM
-           processAndPublishEvent (IllegalMove nextPlayer)
-           processAndPublishEvent (PlayerTurn nextPlayer)
+           processAndPublishEventM (IllegalMove nextPlayer)
+           processAndPublishEventM (PlayerTurn nextPlayer)
 
 elseM = id
 
 -- fully monadicized version
 processGameCommandM'' :: GameInterface m => GameCommand -> m ()
 processGameCommandM'' (DealHands playerHands) =
-  processAndPublishEvent (HandsDealt playerHands)
+  processAndPublishEventM (HandsDealt playerHands)
 processGameCommandM'' (PlayCard playerName card) =
-  ifM (playValidM playerName card) (do
-     processAndPublishEvent (CardPlayed playerName card)
-     ifM turnOverM (do
-       trick <- currentTrickM
-       let trickTaker = whoTakesTrick trick
-       processAndPublishEvent (TrickTaken trickTaker trick)
-       ifM gameOverM
-         (processAndPublishEvent (GameOver))
-         (processAndPublishEvent (PlayerTurn trickTaker)))
-      (do                     -- not turnOver
-       nextPlayer <- nextPlayerM
-       processAndPublishEvent (PlayerTurn nextPlayer)))
-  (do                        -- not playValid
-    nextPlayer <- nextPlayerM
-    processAndPublishEvent (IllegalMove nextPlayer)
-    processAndPublishEvent (PlayerTurn nextPlayer))
+  ifM (playValidM playerName card)
+    (do
+      processAndPublishEventM (CardPlayed playerName card)
+      ifM turnOverM
+        (do
+          trick <- currentTrickM
+          let trickTaker = whoTakesTrick trick
+          processAndPublishEventM (TrickTaken trickTaker trick)
+          ifM gameOverM
+            (processAndPublishEventM (GameOver))
+            (processAndPublishEventM (PlayerTurn trickTaker)))
+       (do                     -- not turnOver
+         nextPlayer <- nextPlayerM
+         processAndPublishEventM (PlayerTurn nextPlayer)))
+    (do                        -- not playValid
+      nextPlayer <- nextPlayerM
+      processAndPublishEventM (IllegalMove nextPlayer)
+      processAndPublishEventM (PlayerTurn nextPlayer))
 
 
-processAndPublishEvent :: GameInterface m => GameEvent -> m ()
-processAndPublishEvent gameEvent = do
+processAndPublishEventM :: GameInterface m => GameEvent -> m ()
+processAndPublishEventM gameEvent = do
   processGameEventM gameEvent
   Writer.tell [gameEvent]
 
