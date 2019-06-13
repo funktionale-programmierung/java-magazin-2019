@@ -642,14 +642,14 @@ durch eine Konstruktion, die ähnlich wie ein Java-Interface
 funktioniert, aber darüber hinaus noch lokal erweiterbar ist:
 
 ```haskell
-data PlayerPackage = 
-  PlayerPackage
+data Player = 
+  Player
   { playerName :: PlayerName
-  , eventProcessor :: forall m . PlayerInterface m => GameEvent -> m PlayerPackage
+  , eventProcessor :: forall m . PlayerInterface m => GameEvent -> m Player
   }
 ```
 
-In der `PlayerPackage` hat eine Spielerin einen Namen und eine
+In der `Player` hat eine Spielerin einen Namen und eine
 Event-Prozessor Funktion, die ein `GameEvent` als Aktion in einer
 Spielermonade `m` interpretiert. Dieses `m` kann beliebig 
 gewählt werden (das wird durch das `forall m` ausgedrückt) und kann
@@ -659,7 +659,7 @@ Verfügung gestellt wird, also das Gegenstück zu `GameInterface`.
 In der Regel wird eine Spielerin im Spiel dazulernen wollen - also
 ihre Beobachtung des Spielverlaufs benutzen, um möglichst gute
 Spielzüge auszuwählen.  Dazu muss sie sich Dinge merken, und das tut
-sie, indem ihr `eventProcessor` ein neues `PlayerPackage` zurückliefert, das in der
+sie, indem ihr `eventProcessor` ein neues `Player` zurückliefert, das in der
 nächsten Runde ihre Stelle einnimmt.
 
 Es bleibt die Implementierung einer Spielerin. Eine "normale"
@@ -713,21 +713,21 @@ playAlongProcessEventM playerName event =
 ```
 
 Diese Spielstrategie wird von der folgenden Funktion in einem
-`PlayerPackage`-Objekt verpackt.  Diese akzeptiert einen expliziten
+`Player`-Objekt verpackt.  Diese akzeptiert einen expliziten
 Zustand vom Typ `PlayerState`.  Dieser wird mit Hilfe der eingebauten
 Funktion  `State.execStateT` explizit in `playAlongProcessEventM`
 gefüttert und auch wieder herausgeholt, unter dem Namen
- `nextPlayerState` - und der wird dann im nächsten `PlayerPackage`
+ `nextPlayerState` - und der wird dann im nächsten `Player`
  verwendet.
 
 ```haskell
-playAlongPlayer :: PlayerName -> PlayerState -> PlayerPackage
+playAlongPlayer :: PlayerName -> PlayerState -> Player
 playAlongPlayer playerName playerState =
   let nextPlayerM event =
         do nextPlayerState <- 
 		     State.execStateT (playAlongProcessEventM playerName event) playerState
            return (playAlongPlayer playerName nextPlayerState)
-  in PlayerPackage playerName nextPlayerM
+  in Player playerName nextPlayerM
 ```
 
 Der Aufruf `State.execStateT` zeigt, dass `playAlongProcessEventM`
