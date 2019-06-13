@@ -81,7 +81,7 @@ Herzkarte einen Punkt; alle weiteren Karten 0 Punkte.
 ![Modellierung des Spielablaufs](gameplay.pdf)
 
 Als Basis des Entwurfs verwenden wir ein klassisches taktisches Entwurfsmuster aus dem
-*Domain-Driven Design*[^5] und modellieren das Kartenspiel auf der
+*Domain-Driven Design*[^5] (DDD) und modellieren das Kartenspiel auf der
 Basis von *domain events*. 
 Abbildung 1 zeigt den Ablauf: Jede Spielerin nimmt Events entgegen,
 die den bisherigen Spielverlauf repräsentieren, und generiert dafür
@@ -122,8 +122,8 @@ Value-Objekten oft nützlich.
   
 ## Kartenspiel modellieren
 
-Die konkrete Modellierung beginnt mit den Spielkarten.  Die folgende
-Deklaration des Datentyps `Card` definiert einen Recordtyp (struct)
+Die konkrete Modellierung beginnt mit den Spielkarten.  Der
+folgende Datentyp `Card` ist ein Record-Typ (analog zu einem POJO in Java)
 und legt damit fest, dass eine Karte eine Farbe ("suit") und einen Wert ("rank") hat.
 
 ```haskell
@@ -164,7 +164,7 @@ Die Deklaration von `Cards` definiert auch die "Getter-Funktionen" `suit` und
 Für Hearts wird ein kompletter Satz Karten benötigt.  Der wird durch
 folgende Definitionen generiert, die jeweils eine Liste aller Farben,
 eine Liste aller Werte und schließlich daraus eine Liste aller Karten
-(also aller Kombinationen aus Farben und Werten) konstruiert.
+(also aller Kombinationen aus Farben und Werten) konstruiert:
 
 ```haskell
 allSuits :: [Suit]
@@ -190,9 +190,19 @@ die eine Spielerin auf der Hand hat: als Menge ("set") von Karten.
 type Hand = Set Card
 ```
 
-Der Typ `Set` ist ein generischer Type, der von der Standardbibliothek
-importiert wird.  Für `Hand` wird eine `type`-Deklaration verwendet,
-die ein Typsynonym definiert.
+Der Typ `Set` ist ein generischer Typ, der von der Standardbibliothek
+importiert wird.  Abbildung FIXME zeigt die Typsignaturen der
+Funktionen aus `Set`.
+
+```haskell
+Set.null :: Set -> Bool
+Set.member :: a -> Set a -> Bool
+Set.insert :: a -> Set.Set a -> Set.Set a
+Set.delete :: a -> Set a -> Set a
+```
+
+Für `Hand` wird eine `type`-Deklaration verwendet, die ein Typsynonym
+definiert.
 
 Einige Hilfsdefinitionen erleichtern den Umgang mit dem Typ `Hand`.
 Die Funktion `isHandEmpty` hat den Typ `Hand -> Bool`, was eine 
