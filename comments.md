@@ -68,12 +68,14 @@ funktionalen Programmierung stehen auch andere leistungsfähige
 Patterns zur Verfügung wie fs2/conduit FIXME, deren Erläuterung aber mehr
 Vorlauf erfordern würde, als hier Platz zur Verfügung steht.)
 
-## GameEvent
+## DONE GameEvent
 
 Anstelle von `HandsDealt (Map PlayerName Hand)` könnte man auch einen
 Event `HandDealt PlayerName Hand` vorsehen, der jedem Spieler einzeln
 seine `Hand` mitteilt. Das liefert einen Vorgeschmack von
 Event-Routing.
+
+DONE in dem Sinne, dass da eine Fußnote steht.
 
 ## DONE processGameCommand, processGameEvent
 
