@@ -17,7 +17,7 @@ Unsere Bedeutung ist 1. Aber ist das nicht eher Entwurf/Design und die Architekt
 
 Wir könnten den Haskell-geneigten Lesern als Übungsaufgabe den Entwurf neuer Strategien vorschlagen.
 
-## data deriving
+## DONE data deriving
 
 Muss man das deriving im Artikel zeigen?
 

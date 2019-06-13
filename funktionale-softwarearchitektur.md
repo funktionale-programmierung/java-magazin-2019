@@ -128,24 +128,15 @@ und legt damit fest, dass eine Karte eine Farbe ("suit") und einen Wert ("rank")
 
 ```haskell
 data Card = Card { suit :: Suit, rank :: Rank }
-  deriving (Show, Eq, Ord)
 ```
-
-Die Zeile `deriving (Show, Eq, Ord)` sorgt dafür, dass Haskell
-automatisch Funktionen generiert, um einen Wert auszudrucken (`Show` -
-analog zum Beispiel zu `toString()` in Java), auf Gleichheit zu testen
-(`Eq` - analog zu `equals()`) und mit "größer als" und "kleiner als" zu
-vergleichen (`Ord` - analog zu `compareTo()`).
 
 Weiter werden noch Definitionen von `Suit` und `Rank`
 benötigt:
 
 ```haskell
 data Suit = Diamonds | Clubs | Spades | Hearts
-  deriving (Show, Eq, Ord)
   
 data Rank = Numeric Integer | Jack | Queen | King | Ace
-  deriving (Show, Eq, Ord)
 ```
 
 Hier handelt es sich um Aufzählungen (vergleichbar mit `enum` in Java) - das `|` steht für "Oder",
@@ -347,7 +338,6 @@ data GameEvent =
   | TrickTaken PlayerName Trick
   | IllegalMove PlayerName
   | GameOver
-  deriving Show
 ```
 
 Das `HandsDealt`-Event trägt eine "Map" zwischen Spielernamen und ihren
@@ -360,7 +350,6 @@ Es gibt nur zwei Klassen von Commands:
 data GameCommand =
     DealHands (Map PlayerName Hand)
   | PlayCard PlayerName Card
-  deriving Show
 ```
 
 Die erste Klasse ist das direkte Pendant zu `HandsDealt`; sie 
@@ -388,7 +377,6 @@ data GameState =
     gameStateStacks  :: PlayerStacks,
     gameStateTrick   :: Trick
   }
-  deriving Show
 ```
 
 Die Liste im Feld `gameStatePlayers` wird dabei immer so rotiert,
