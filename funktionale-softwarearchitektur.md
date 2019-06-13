@@ -702,7 +702,7 @@ Wartbarkeit des Codes.
 
 [^3]: Hutton, Graham: *Programming in Haskell*, 2nd edition, 2016.
 
-[^4]: Hearts auf Wikipedia, [`https://en.wikipedia.org/wiki/Hearts_(card_game)`](https://en.wikipedia.org/wiki/Hearts_(card_game))
+[^4]: Hearts auf Wikipedia, [`https://de.wikipedia.org/wiki/Hearts`](https://de.wikipedia.org/wiki/Hearts)
 
 [^5]: Vaughn, Vernon: *Domain-Driven Design Distilled*, Pearson, 2016.
 
