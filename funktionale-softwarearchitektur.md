@@ -58,7 +58,7 @@ Sprache Haskell[^1], die besonders kurze und elegante Programme
 ermöglicht.  Keine Sorge: Wir erläutern den Code, so dass er auch ohne
 Vorkenntnisse in Haskell lesbar ist.  Wer dadurch auf Haskell
 neugierig geworden ist, kann sich eine Einführung in 
-funktionale Programmierung[^2] und ein Buch zu Haskell[^3] zu Gemüte
+funktionale Programmierung[^2], ein Buch zu Haskell[^3] oder einen Onlinekurs[^11] zu Gemüte
 führen.
 
 ## Überblick
@@ -82,7 +82,7 @@ Herzkarte einen Punkt; alle weiteren Karten 0 Punkte.
 
 Als Basis des Entwurfs verwenden wir ein klassisches taktisches Entwurfsmuster aus dem
 *Domain-Driven Design*[^5] (DDD) und modellieren das Kartenspiel auf der
-Basis von *domain events*.   Die Event repräsentieren jedes Ereignis,
+Basis von *domain events*.   Die Events repräsentieren jedes Ereignis,
 das im Spielverlauf passiert ist - die Commands repräsentieren Wünsche
 der Beteiligten, dass etwas passiert.  Die Architektur ist so offen
 für spätere Umstellung auf Client-Server-Betrieb, Mikroservices oder
@@ -98,16 +98,16 @@ Das Entwurfsmuster ist das gleiche wie in "objektorientiertem DDD", aber die
 Umsetzung unterscheidet sich durch die Verwendung von unveränderlichen Daten und Funktionen. 
 
 Im Beispiel stellen wir die Kommunikation zwischen den einzelnen Komponenten der
-Architektur direkt mit Funktionsaufrufen her, aber andere
+Architektur direkt mit Funktionsaufrufen her, aber auch andere
 Mechanismen - nebenläufige Prozesse oder Mikroservices - sind
-auch möglich.
+möglich.
 
 ## Programmieren mit unveränderlichen Daten
 
 Eine Vorbemerkung: "Unveränderliche Daten" bedeutet, dass es keine Zuweisungen gibt, die Attribute von
-Objekten verändern könnten.  Wenn Veränderung modelliert werden soll,
+Objekten verändern können.  Wenn Veränderung modelliert werden soll,
 so generiert ein funktionales Programm neue Objekte.  Diese
-Einschränkung bietet enorme Vorteile:
+Vorgehensweise bietet enorme Vorteile:
 
 * Es gibt niemals Probleme mit verdeckten Zustandsänderungen durch
   Methodenaufrufe oder nebenläufige Prozesse. 
@@ -148,9 +148,10 @@ Hier handelt es sich um Aufzählungen (vergleichbar mit `enum` in Java) - das `|
 entsprechend steht dort: Ein `Suit` ist `Diamonds` oder `Clubs` oder
 `Spades` oder `Hearts`.  Bei `Rank` ist es ähnlich - zusätzlich hat
 eine der Alternativen, `Numeric`, ein Feld vom Typ `Integer`, das den
-Wert einer Zahlenspielkarte angibt.  Bei `Rank` sind die Alternativen
-schon so angeordnet, dass der Vergleich aus `Ord` den Wert der
-Spielkarten korrekt abbildet.
+Wert einer Zahlenspielkarte angibt.  
+<!-- Bei `Rank` sind die Alternativen -->
+<!-- schon so angeordnet, dass der Vergleich aus `Ord` den Wert der -->
+<!-- Spielkarten korrekt abbildet. -->
 
 Hier ist die Definition der Kreuz Zwei auf Basis dieser
 Datentypdefinition in Form einer Gleichung:
@@ -159,7 +160,7 @@ Datentypdefinition in Form einer Gleichung:
 twoOfClubs = Card Clubs (Numeric 2)
 ```
 
-Das Beispiel zeigt, dass `Card` als Konstruktorfunktion agiert.
+Das Beispiel zeigt, dass `Card` als *Konstruktorfunktion* agiert.
 Außerdem auffällig: In Haskell werden Funktionsaufrufe ohne Klammern
 und Komma geschrieben, Klammern dienen nur zum Gruppieren.
 
@@ -184,8 +185,8 @@ deck :: [Card]
 deck = [Card suit rank | rank <- allRanks, suit <- allSuits]
 ```
 
-Jede Definition wird von einer *Typdeklaration* begleitet.  `allSuits
-:: [Suit]` bedeutet, dass `allSuits` eine *Liste* (die eckigen
+Jede Definition wird von einer *Typdeklaration* wie   `allSuits ::
+[Suit]` begleitet. Das bedeutet, dass `allSuits` eine *Liste* (die eckigen
 Klammern) von Farben ist.  Die Definitionen für `allRanks` und `deck` benutzen
 sogenannte Comprehension-Syntax[^6], um die Werte und
 schließlich alle Karten aufzuzählen.
@@ -263,7 +264,7 @@ ist `hand1` immer noch die "alte" Hand und `hand2` die neue.
 Das ist in Haskell nicht nur eine Konvention: Eine Funktion *kann* 
 nicht einfach so Objekte "verändern", es handelt sich im Sprachgebrauch der
 funktionalen Programmierung immer um eine "reine" oder "pure"
-Funktion.  Diese *rein funktionale Programmierung* macht die Typsignatur
+Funktion.  In der *rein funktionale Programmierung* ist die Typsignatur
 enorm nützlich, weil sie alles aufführt, was in die Funktion
 hineingeht und wieder hinausgeht: Es gibt keine versteckten
 Abhängigkeiten zu globalem Zustand und alle Ausgaben stehen hinter dem
@@ -284,7 +285,9 @@ type Trick = [(PlayerName, Card)]
 ```
 
 Die Typdefinition von `Trick` besagt, dass ein Stich eine Liste (die
-eckigen Klammern) von Zwei-Tupeln (die runden Klammern innendrin) ist.
+eckigen Klammern) von Zwei-Tupeln (die runden Klammern innendrin)
+ist. Wir verwenden hier Listen, da die Reihenfolge der
+Karten wichtig ist, wenn es darum geht, welche Spielerin den Stich bekommt.
 Listen werden in funktionalen Sprachen "von hinten nach vorn"
 aufgebaut, die zuletzt ausgespielte Karte ist also vorn.
 
@@ -327,8 +330,8 @@ Abstraktionen zu bilden, die das fachliche Wissen verallgemeinern.
 Das Zusammenspiel von generischen Higher-Order-Funktionen und anderen
 reinen Funktionen liefert die Basis für ein extrem mächtiges Konstruktionsprinzip:
 Weil Funktionen nie etwas
-"verstecktes" machen, können sie bedenkenlos zu immer größeren
-Gebilden zusammengestöpselt werden.  In OO-Sprachen wächst mit der
+"Verstecktes" machen, können sie bedenkenlos zu immer größeren
+Gebilden zusammengestöpselt werden.  In OO-Sprachen wächst jedoch mit der
 Größe das Risiko, dass versteckte Effekte unerwünschte
 Wechselwirkungen haben.  Deshalb sind Disziplin und eigene
 architektonische Patterns notwendig, um die resultierende Komplexität
@@ -361,7 +364,7 @@ data GameEvent =
 ```
 
 Das `HandsDealt`-Event trägt eine "Map" zwischen Spielernamen und ihren
-Karten mit sich.[^10]  Ein Verlauf des Spiels kann immer aus dessen Folge
+Karten mit sich.[^10] Der Verlauf eines Spiels kann immer aus dessen Folge
 von Events rekonstruiert werden.
 
 Es gibt nur zwei Klassen von Commands:
@@ -403,7 +406,7 @@ Die Liste im Feld `gameStatePlayers` wird dabei immer so rotiert,
 dass die nächste Spielerin vorn steht.  Für die beiden Felder
 `gameStateHands` und `gameStateStacks` müssen jeweils Karten *pro
 Spieler* vorgehalten werden, darum sind die dazugehörigen Typen
-Syonyme für Maps:
+Synonyme für Maps:
 
 ```haskell
 type PlayerStacks = Map PlayerName (Set Card)
@@ -420,7 +423,7 @@ hat deswegen folgende Signatur:
 processGameCommand :: GameCommand -> GameState -> (GameState, [GameEvent])
 ```
 
-Mit anderen Worten (Repräsentation des) Zustand vorher rein, Command
+Mit anderen Worten Command rein, (Repräsentation des) Zustand vorher
 rein, Tupel aus (Repräsentation des) neuem Zustand und Liste
 resultierender Events raus.  Hier ist die Implementierung der
 Gleichung für das `DealHands`-Command:
@@ -538,7 +541,7 @@ processGameCommandM (PlayCard playerName card)
       processAndPublishEventM (PlayerTurn nextPlayer))
 ```
 
-Die Funktion sieht zwar aus, als würde sie Änderungen *machen* -
+Die Funktion sieht zwar aus, als würde sie Änderungen *durchführen* -
 tatsächlich aber liefert sie nur eine *Beschreibung* dieser
 Änderungen.  Diese Beschreibung muss dann explizit ausgewertet
 werden.  Im Fall von Zustand heißt das zum Beispiel, dass aus der
@@ -553,14 +556,13 @@ processGameCommandM :: GameInterface m => GameCommand -> m ()
 ```
 
 Der Typ zerfällt in zwei Teile, die durch den Doppelpfeil `=>`
-getrennt sind.  Im rechten Teil taucht eine Typvariable `m` auf,
-die für die Monade steht.  Links davon steht ein sogenannter
-*Constraint*, der sagt, was für Eigenschaften `m` haben muss.  In
-diesem Fall steht dort, dass `m` das Interface `GameInterface`
-erfüllen muss - dazu gleich.  Wenn dem so ist, so liefert
-`processGameCommandM` eine Berechnung, die `()` produziert, das steht
-für "kein explizites Ergebnis" - die Ergebnisse sind alle
-implizit.
+getrennt sind.  Im rechten Teil taucht eine Typvariable `m` auf, die
+für die Monade steht.  Links davon steht ein sogenannter *Constraint*,
+der sagt, was für Eigenschaften `m` haben muss.  In diesem Fall steht
+dort, dass `m` das Interface `GameInterface` erfüllen muss - dazu
+gleich.  Wenn dem so ist, so liefert `processGameCommandM` zu jedem
+Kommando eine Berechnung, die `()` produziert, das steht für "kein
+explizites Ergebnis" - die Ergebnisse sind alle implizit.
 
 `GameInterface` hat folgende Definition:
 
@@ -575,8 +577,8 @@ GameState`) und sie darf `GameEvent`s bekannt geben.  Mehr *kann*
 Unterschied zu Java.[^8]
 
 Da der Zustand nicht mehr explizit herumgereicht wird, muss sich eine
-Aktion wie `playValidM` den aktuellen `GameState` erst besorgen, in
-dem sie die Operation `State.get` benutzt, die zu `MonadState` gehört:
+Aktion wie `playValidM` den aktuellen `GameState` erst besorgen, indem
+sie die Operation `State.get` benutzt, die zu `MonadState` gehört: 
 
 ```haskell
 playValidM :: MonadState GameState m => PlayerName -> Card -> m Bool
@@ -585,7 +587,7 @@ playValidM playerName card = do
   return (playValid state playerName card)
 ```
 
-Die Funktion `playValidM` hat noch weniger Anforderungen an
+Diese Funktion hat noch weniger Anforderungen an
 die Monade, denn sie verlangt nur den Zustandsanteil.
 Die Aktion `state <- State.get` besorgt den aktuellen
 Zustand, der für die folgenden Aktionen in der Variable `state` zur
@@ -621,9 +623,9 @@ processGameEventM (HandsDealt playerHands) =
 Sie holt sich also den impliziten Zustand und schreibt dann eine neue
 Version zurück, in der die verteilen Karten vermerkt sind.
 
-Alle Funktionen mit Effekten in solche monadische Form schreiben zu
-bringen ist manchmal anstrengend.  Es sorgt aber einerseits dafür,
-dass an den Funktionssignaturen deutlich zu sehen ist, welches Arsenal
+Alle Funktionen mit Effekten in monadische Form zu
+bringen ist manchmal anstrengend.  Dafür ist aber an den
+Funktionssignaturen deutlich zu sehen ist, welches Arsenal 
 von Effekten sie benötigen.  Außerdem ist das Resultat jeweils immer
 noch eine Funktion, die unter kontrollierten Umständen aufgerufen
 werden kann.
@@ -666,7 +668,7 @@ data Player =
   }
 ```
 
-In der `Player` hat eine Spielerin einen Namen und eine
+Im `Player` hat eine Spielerin einen Namen und eine
 Event-Prozessor Funktion, die ein `GameEvent` als Aktion in einer
 Spielermonade `m` interpretiert. Dieses `m` kann beliebig 
 gewählt werden (das wird durch das `forall m` ausgedrückt) und kann
@@ -679,8 +681,8 @@ Spielzüge auszuwählen.  Dazu muss sie sich Dinge merken, und das tut
 sie, indem ihr `eventProcessor` ein neues `Player` zurückliefert, das in der
 nächsten Runde ihre Stelle einnimmt.
 
-Es bleibt die Implementierung einer Spielerin. Eine "normale"
-Spielerin werden sich daran erinnern müssen, welche Karten sie auf der
+Es bleibt die Implementierung einer Spielerin. Um die Regeln
+einzuhalten muss jede Spielerin sich daran erinnern, welche Karten sie auf der
 Hand hat und was auf dem Stich liegt.   Der Typ dazu sieht so aus:
 
 ```haskell
@@ -801,9 +803,9 @@ Protokolle.
 
 <!-- ## Quellen (Fußnoten) -->
 
-[^1]: [`https://www.haskell.org/`](https://www.haskell.org)
+[^1]: [`https://www.haskell.org/`](https://www.haskell.org/)
 
-[^2]: Michael Sperber, Herbert Klaeren: *Schreibe Dein Programm!*, [`https://www.deinprogramm.de`](https://www.deinprogramm.de/)
+[^2]: Michael Sperber, Herbert Klaeren: *Schreibe Dein Programm!*, [`https://www.deinprogramm.de/`](https://www.deinprogramm.de/)
 
 [^3]: Hutton, Graham: *Programming in Haskell*, 2nd edition, 2016.
 
@@ -811,7 +813,7 @@ Protokolle.
 
 [^5]: Vaughn, Vernon: *Domain-Driven Design Distilled*, Pearson, 2016.
 
-[^6]: Die auch in Python Eingang gefunden hat.
+[^6]: Pythons Comprehensions sind von den funktionalen Sprachen Haskell und Miranda inspiriert.
 
 [^7]: Funktionale Programmierer sprechen von *curried functions* und *currying*, [`https://de.wikipedia.org/wiki/Currying`](https://de.wikipedia.org/wiki/Currying). 
 
@@ -824,8 +826,10 @@ Einschränkungen definieren, sodass nur bestimmte I/O-Operationen
 zulässig sind.
 
 [^10]: `HandsDealt` ist als Domain-Event eigentlich ungünstig, weil
-    dieses an alle Spielerinnen verteilt wird, die so nicht nur ihre
+    es an alle Spielerinnen verteilt wird, die so nicht nur ihre
     eigene Hand erfahren, sonderen auch die der anderen.  Wir haben es
     hier aus Gründen der Einfachheit gewählt, aber besser wären
     separate `HandDealt`-Events für jeweils nur eine Spielerin, die
     von denen jede Spielerin nur jeweils "ihres" bekommt.
+
+[^11]: z.B. Joachim Breitners *Haskell for Readers* [`http://haskell-for-readers.nomeata.de/`](http://haskell-for-readers.nomeata.de/)
