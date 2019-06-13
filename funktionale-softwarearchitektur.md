@@ -326,7 +326,7 @@ in den Griff zu bekommen.  In der funktionalen Programmierung ist das
 nicht so. Dementsprechend ist dort das "Programmieren im Großen" dem
 "Programmieren im Kleinen" ziemlich ähnlich.
 
-## Spiel-Logik
+## Spiellogik
 
 Die Spiellogik bildet den Mittelbau der Architektur.  Ein Event-Storming liefert folgende
 Event-Klassen:
@@ -619,9 +619,8 @@ generiert, funktioniert die Spielerlogik genau andersherum. Sie nimmt
 Events entgegen und liefert als Antwort Kommandos, die an die
 Spiellogik weitergegeben werden. 
 
-Für die Implementierung der Spielerlogik wollen wir maximale
-Freiheiten haben und verwenden dabei wieder 
-Monaden. Das heißt, jede Spielerin wird in einer abstrakten Monade
+Für die Implementierung der Spielerlogik verwenden wir wieder 
+Monaden, um FIXME explizit . Das heißt, jede Spielerin wird in einer abstrakten Monade
 gestartet, von der sie nur weiß, dass sie Kommandos an die Spiellogik
 schicken kann und dass sie Zugriff auf I/O-Operationen hat - zum
 Beispiel um über ein GUI zu interagieren oder den Telefonjoker
@@ -647,10 +646,6 @@ data PlayerPackage =
   { playerName :: PlayerName
   , eventProcessor :: forall m . PlayerInterface m => GameEvent -> m PlayerPackage
   }
-
-runPlayer :: PlayerInterface m => PlayerPackage -> GameEvent -> m PlayerPackage
-runPlayer (PlayerPackage p f) gameEvent =
-  f gameEvent
 ```
 
 In der `PlayerPackage` hat eine Spielerin einen Namen und eine
@@ -663,7 +658,7 @@ Verfügung gestellt wird, also das Gegenstück zu `GameInterface`.
 In der Regel wird eine Spielerin im Spiel dazulernen wollen - also
 ihre Beobachtung des Spielverlaufs benutzen, um möglichst gute
 Spielzüge auszuwählen.  Dazu muss sie sich Dinge merken, und das tut
-sie, indem ihr `eventProcessor` ein neues `PlayerPackage`, das in der
+sie, indem ihr `eventProcessor` ein neues `PlayerPackage` zurückliefert, das in der
 nächsten Runde ihre Stelle einnimmt.
 
 Es bleibt die Implementierung einer Spielerin. Eine "normale"
@@ -688,9 +683,11 @@ playerProcessGameEventM :: (MonadState PlayerState m, PlayerInterface m) => Play
 ```
 
 Der folgende Code implementiert eine Spielerin, die bei Spielbeginn
-die Kreuz Zwei ausspielt, falls sie sie hat und ansonsten eine
+die Kreuz Zwei ausspielt, falls sie sie hat und danach jeweils eine
 passende Karte mit der Hilfsfunktion `playAlongCard` auswählt und
-diese ausspielt.  Um verschiedene Events zu unterscheiden, benutzt die
+diese ausspielt.  Das tut sie, indem sie `Writer.tell` aufruft mit
+einem `Playcard`-Command.
+Um verschiedene Events zu unterscheiden, benutzt die
 Funktion ein `case`-Konstrukt, das analog zu `switch` in Java
 funktioniert - der letzte Zweig `_` entspricht dem Java-`default`.
 
@@ -715,12 +712,12 @@ playAlongProcessEventM playerName event =
 ```
 
 Diese Spielstrategie wird von der folgenden Funktion in einem
- `PlayerPackage`-Objekt verpackt.  Diese akzeptiert einen expliziten
+`PlayerPackage`-Objekt verpackt.  Diese akzeptiert einen expliziten
 Zustand vom Typ `PlayerState`.  Dieser wird mit Hilfe der eingebauten
 Funktion  `State.execStateT` explizit in `playAlongProcessEventM`
 gefüttert und auch wieder herausgeholt, unter dem Namen
  `nextPlayerState` - und der wird dann im nächsten `PlayerPackage`
- verwendet.  
+ verwendet.
 
 ```haskell
 playAlongPlayer :: PlayerName -> PlayerState -> PlayerPackage
@@ -740,6 +737,8 @@ Anfangszustand aufrufen und bekommt dann einen expliziten
 Resultatzustand zurück.
 
 ## Fazit
+
+FIXME: Wrap-up
 
 Funktionale Softwarearchitektur bedeutet erst einmal, dass ein
 Entwickler nicht so leicht Architekturprinzipien verletzen kann: Nicht mal so eben
