@@ -61,7 +61,7 @@ Code auf.)
 
 Der Abschnitt ist zu lang und könnte unterteilt werden.
 
-## in der conclusion?
+## NOT DONE in der conclusion?
 
 (In der
 funktionalen Programmierung stehen auch andere leistungsfähige
