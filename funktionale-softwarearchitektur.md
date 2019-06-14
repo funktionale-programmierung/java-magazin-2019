@@ -7,9 +7,9 @@ lang: de
 
 ## Abstract
 
-Der Entwurf von nachhaltigen Softwarearchitekturen ist eine Herausvorderung: Mit der
+Der Entwurf von nachhaltigen Softwarearchitekturen ist eine Herausforderung: Mit der
 Größe steigt in vielen klassisch objektorientierten Softwareprojekten
-die Komplexität überproportional an.  Mit viel Disziplin und regelmäßigen
+die Komplexität überproportional an.  Durch viel Disziplin und regelmäßige
 Refaktorisierungen lässt sich das Problem eine Weile in Schach halten,
 aber die wechselseitigen Abhängigkeiten und komplexen Abläufe von
 Zustandsveränderungen nehmen mit der Zeit trotzdem zu.
@@ -116,7 +116,7 @@ Einschränkung bietet enorme Vorteile:
   Programm erst das eine Feld, dann das nächste etc. setzt.
 
 * Das Programm kann problemlos durch ein Gedächtnis erweitert werden,
-  das zum Beispiel zum früheren Spielständen zurückkehrt, wenn eine
+  das zum Beispiel zu früheren Spielständen zurückkehrt, wenn eine
   Spielerin ihren Zug zurücknimmt.
 
 * Es gibt keine verstecken Abhängigkeiten durch die Kommunikation von
@@ -487,7 +487,7 @@ fehleranfällig - wenn zum Beispiel irgendwo statt `state3` mal
 sequenziellen Prozess abbildet, und dem wäre besser durch eine
 sequenzielle Notation gedient.
 
-Sequenzieller Prozesse lassen sich gut durch *Monaden* beschreiben,
+Sequenzielle Prozesse lassen sich gut durch *Monaden* beschreiben,
 ein typisch funktionales Entwurfsmuster.  Mit Monaden entstehen
 immer noch Funktionen, aber die Notation wechselt in eine sequenzielle
 Form.  Diese hat Zugriff auf einen *Kontext*, der sowohl gelesen als
@@ -589,7 +589,7 @@ Die Funktion `playValidM` hat noch weniger Anforderungen an
 die Monade, denn sie verlangt nur den Zustandsanteil.
 Die Aktion `state <- State.get` besorgt den aktuellen
 Zustand, der für die folgenden Aktionen in der Variable `state` zur
-Verfügung steht. Die verbleibende `return` Aktion gibt den Zustand
+Verfügung steht. Das verbleibende `return` gibt den Zustand
 unverändert weiter und liefert als Ergebnis den Wert von `playValid`. 
 
 Auf die gleiche Art und Weise funktionieren auch die Aktionen `turnOverM`, `currentTrickM`,
@@ -621,7 +621,7 @@ processGameEventM (HandsDealt playerHands) =
 Sie holt sich also den impliziten Zustand und schreibt dann eine neue
 Version zurück, in der die verteilen Karten vermerkt sind.
 
-Alle Funktionen mit Effekten in solche monadische Form schreiben zu
+Alle Funktionen mit Effekten in solche monadische Form zu
 bringen ist manchmal anstrengend.  Es sorgt aber einerseits dafür,
 dass an den Funktionssignaturen deutlich zu sehen ist, welches Arsenal
 von Effekten sie benötigen.  Außerdem ist das Resultat jeweils immer
@@ -666,8 +666,8 @@ data Player =
   }
 ```
 
-In der `Player` hat eine Spielerin einen Namen und eine
-Event-Prozessor Funktion, die ein `GameEvent` als Aktion in einer
+In `Player` hat eine Spielerin einen Namen und eine
+Event-Prozessor-Funktion, die ein `GameEvent` als Aktion in einer
 Spielermonade `m` interpretiert. Dieses `m` kann beliebig 
 gewählt werden (das wird durch das `forall m` ausgedrückt) und kann
 sich darauf verlassen, dass das `PlayerInterface` vom Aufrufer zur
@@ -676,8 +676,8 @@ Verfügung gestellt wird, also das Gegenstück zu `GameInterface`.
 In der Regel wird eine Spielerin im Spiel dazulernen wollen - also
 ihre Beobachtung des Spielverlaufs benutzen, um möglichst gute
 Spielzüge auszuwählen.  Dazu muss sie sich Dinge merken, und das tut
-sie, indem ihr `eventProcessor` ein neues `Player` zurückliefert, das in der
-nächsten Runde ihre Stelle einnimmt.
+sie, indem ihr `eventProcessor` ein neues `Player`-Objekt zurückliefert, das in der
+nächsten Runde den Platz des alten einnimmt.
 
 Es bleibt die Implementierung einer Spielerin. Eine "normale"
 Spielerin werden sich daran erinnern müssen, welche Karten sie auf der
@@ -690,20 +690,17 @@ data PlayerState =
 ```
 
 Hilfreich ist die Funktion `playerProcessGameEventM`, die den
-Spielerzustand entsprechend der eingehenden Events ändert.  Auch
-dieses "Gedächtnis" muss explizit angegeben und verwaltet werden.
-Dazu dient die Funktion `playerProcessGameEventM`, die neben dem
-normalen `PlayerInterface` auch noch einen `PlayerState` als Zustand
-mitführt:
+Spielerzustand entsprechend der eingehenden Events ändert.   Sie benötigt
+das normale `PlayerInterface`, aber auch einen `PlayerState` als Zustand:
 
 ```haskell
 playerProcessGameEventM :: (MonadState PlayerState m, PlayerInterface m) => PlayerName -> GameEvent -> m ()
 ```
 
 Der folgende Code implementiert eine Spielerin, die bei Spielbeginn
-die Kreuz Zwei ausspielt, falls sie sie hat und danach jeweils eine
-passende Karte mit der Hilfsfunktion `playAlongCard` auswählt und
-diese ausspielt.  Das tut sie, indem sie `Writer.tell` aufruft mit
+die Kreuz Zwei ausspielt, falls sie die Karte hat. Danach wählt sie jeweils eine
+passende Karte mit der Hilfsfunktion `playAlongCard` aus und
+spielt diese aus.  Das tut sie, indem sie `Writer.tell` aufruft mit
 einem `Playcard`-Command.
 Um verschiedene Events zu unterscheiden, benutzt die
 Funktion ein `case`-Konstrukt, das analog zu `switch` in Java
@@ -731,7 +728,7 @@ playAlongProcessEventM playerName event =
 
 Diese Spielstrategie wird von der folgenden Funktion in einem
 `Player`-Objekt verpackt.  Die Strategie akzeptiert einen expliziten
-Zustand vom Typ `PlayerState`.  Dies dazugehörige Beschreibung der
+Zustand vom Typ `PlayerState`.  Die dazugehörige Beschreibung der
 Zustandsveränderung wird in `playAlongProcessEventM` mit Hilfe der
 eingebauten Funktion `State.execStateT` explizit gefüttert und auch
 wieder herausgeholt, unter dem Namen `nextPlayerState` - und der wird
