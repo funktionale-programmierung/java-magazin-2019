@@ -194,15 +194,15 @@ processGameCommand (PlayCard player card) state =
           let trick = gameStateTrick state1
               trickTaker = whoTakesTrick trick
               event2 = TrickTaken trickTaker trick
-              state2 = processGameEvent event2 state
-              event3 = if gameOver state
+              state2 = processGameEvent event2 state1
+              event3 = if gameOver state2
                        then GameOver
                        else PlayerTurn trickTaker
-              state3 = processGameEvent event3 state
+              state3 = processGameEvent event3 state2
           in (state3, [event1, event2, event3])
         else
           let event2 = PlayerTurn (nextPlayer state1)
-              state2 = processGameEvent event2 state
+              state2 = processGameEvent event2 state1
           in (state2, [event1, event2])
   else
     (state, [IllegalMove player, PlayerTurn player])
