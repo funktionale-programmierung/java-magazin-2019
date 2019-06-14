@@ -446,8 +446,8 @@ verlässt sich auf Hilfsfunktionen `playValid` (die einen Spielzug auf
 Korrektheit überprüft), `whoTakesTrick` (die berechnet, wer den Stich
 einziehen muss) und `gameOver` (die feststellt, ob das Spiel vorbei
 ist).  Der Code führt eine Reihe von Fallunterscheidungen in Form von
-`if ... then ... else` durch und bindet lokale Variablen (insbesondere
-Events `event1`, `event2` etc. und Zwischenzustände `state1`, `state2`
+`if ... then ... else` durch und bindet lokale Variablen - insbesondere
+Events `event1`, `event2` etc. und Zwischenzustände `state1`, `state2` -
 mit `let`:
 
 ```haskell
