@@ -448,7 +448,7 @@ einziehen muss) und `gameOver` (die feststellt, ob das Spiel vorbei
 ist).  Der Code führt eine Reihe von Fallunterscheidungen in Form von
 `if ... then ... else` durch und bindet lokale Variablen - insbesondere
 Events `event1`, `event2` etc. und Zwischenzustände `state1`, `state2` -
-mit `let`:
+mit dem Sprachkonstrukt `let`:
 
 ```haskell
 processGameCommand (PlayCard player card) state =
