@@ -23,7 +23,6 @@ import Cards
 import Game hiding (processGameCommandM, processGameEvent, playerProcessGameEvent)
 import qualified Shuffle
 
--- different
 type StrategyInterface m = (HasPlayerState m, MonadIO m)
 
 data PlayerStrategy
@@ -31,20 +30,10 @@ data PlayerStrategy
 
 type PlayerInterface m = (MonadIO m, MonadWriter [GameCommand] m)
 
-data PlayerEventProcessor =
-  PlayerEventProcessor (forall m . PlayerInterface m =>
-                         GameEvent -> m PlayerEventProcessor)
-
 data Player = 
   Player
   { playerName :: PlayerName
-  , eventProcessor :: PlayerEventProcessor
-  }
-
-data Player' = 
-  Player'
-  { playerName' :: PlayerName
-  , eventProcessor' :: forall m . PlayerInterface m => GameEvent -> m Player'
+  , eventProcessor :: forall m . PlayerInterface m => GameEvent -> m Player
   }
 
 -- main entry point
@@ -52,11 +41,6 @@ runGame :: [Player] -> IO ()
 runGame players = do
   -- create game state monad on top of IO
   State.evalStateT (startController players) emptyGameState
-
-runGame' :: [Player'] -> IO ()
-runGame' players = do
-  -- create game state monad on top of IO
-  State.evalStateT (startController' players) emptyGameState
 
 type HasGameState m = MonadState GameState m
 
@@ -74,17 +58,6 @@ startController players = do
   shuffledCards <- liftIO $ Shuffle.shuffleRounds 10 Cards.deck
   let hands = Map.fromList (zip playerNames (map Set.fromList (Shuffle.distribute (length playerNames) shuffledCards)))
   gameController players [DealHands hands]
-
-startController' :: ControllerInterface m => [Player'] -> m ()
-startController' players = do
-  -- setup game state
-  let playerNames = map playerName' players
-  State.modify (\state -> state { gameStatePlayers = playerNames,
-                                  gameStateStacks  = Map.fromList (zip playerNames $ repeat Set.empty)
-                                })
-  shuffledCards <- liftIO $ Shuffle.shuffleRounds 10 Cards.deck
-  let hands = Map.fromList (zip playerNames (map Set.fromList (Shuffle.distribute (length playerNames) shuffledCards)))
-  gameController' players [DealHands hands]
 
 -- state projections
 
@@ -109,12 +82,8 @@ gameOverM :: HasGameState m => m Bool
 gameOverM =
   fmap gameOver State.get
 
-runPlayer' :: PlayerInterface m => Player' -> GameEvent -> m Player'
-runPlayer' (Player' p f) gameEvent = f gameEvent
-
-runPlayer :: PlayerInterface m => PlayerEventProcessor -> GameEvent -> m PlayerEventProcessor
-runPlayer (PlayerEventProcessor f) gameEvent =
-  f gameEvent
+runPlayer :: PlayerInterface m => Player -> GameEvent -> m Player
+runPlayer (Player p f) gameEvent = f gameEvent
 
 announceEvent :: ControllerInterface m => GameEvent -> m ()
 announceEvent (PlayerTurn playerName) =
@@ -148,43 +117,21 @@ announceEvent gameEvent =
 gameController :: ControllerInterface m => [Player] -> [GameCommand] -> m ()
 gameController players commands = do
   -- traceM ("** INCOMING COMMANDS " ++ show commands) 
-  events <- Writer.execWriterT $ mapM_ processGameCommandM' commands
-  mapM_ announceEvent events
-  -- st <- State.get
-  -- traceM ("** GAMESTATE: " ++ show st)
-  -- traceM ("** OUTGOING EVENTS " ++ show events)
-  (players', commands') <- Writer.runWriterT $ mapM
-    (\pp -> do cp' <- Foldable.foldlM runPlayer (eventProcessor pp) events
-               return pp { eventProcessor = cp' }
-    ) players
-  unless (null commands') $
-    gameController players' commands'
-
-gameController' :: ControllerInterface m => [Player'] -> [GameCommand] -> m ()
-gameController' players commands = do
-  -- traceM ("** INCOMING COMMANDS " ++ show commands) 
-  events <- Writer.execWriterT $ mapM_ processGameCommandM' commands
+  events <- Writer.execWriterT $ mapM_ processGameCommandM commands
   mapM_ announceEvent events
   -- st <- State.get
   -- traceM ("** GAMESTATE: " ++ show st)
   -- traceM ("** OUTGOING EVENTS " ++ show events)
   (players', commands') <- Writer.runWriterT $ 
-    mapM (\player -> Foldable.foldlM runPlayer' player events) players
+    mapM (\player -> Foldable.foldlM runPlayer player events) players
   unless (null commands') $
-    gameController' players' commands'
-
-processGameCommandM :: GameInterface m => GameCommand -> m ()
-processGameCommandM command =
-  do gameState <- State.get
-     let (gameState', events) = processGameCommand command gameState
-     State.put gameState'
-     Writer.tell events
+    gameController players' commands'
 
 -- directly monadic version
-processGameCommandM' :: GameInterface m => GameCommand -> m ()
-processGameCommandM' (DealHands playerHands) =
+processGameCommandM :: GameInterface m => GameCommand -> m ()
+processGameCommandM (DealHands playerHands) =
    processAndPublishEventM (HandsDealt playerHands)
-processGameCommandM' (PlayCard playerName card) =
+processGameCommandM (PlayCard playerName card) =
    do playIsValid <- playValidM playerName card
       if playIsValid then
         do processAndPublishEventM (CardPlayed playerName card)
@@ -302,13 +249,35 @@ playerProcessGameEventM playerName gameEvent = do
   -- st <- State.get
   -- traceM ("** AFTER PLAYERPROCESSGAMEEVENT " ++ playerName ++ " " ++ show gameEvent ++ ": " ++ show st)
 
+
+{-
+playAlongPlayer :: PlayerName -> PlayerState -> PlayerEventProcessor
+playAlongPlayer playerName playerState =
+  PlayerEventProcessor $ \ event -> do
+    nextPlayerState <- flip State.execStateT playerState $ do
+      playerProcessGameEventM playerName event
+      playerState <- State.get
+      case event of
+        HandsDealt _ ->
+          when (Set.member twoOfClubs (playerHand playerState)) $
+            Writer.tell [PlayCard playerName twoOfClubs]
+
+        PlayerTurn turnPlayerName ->
+          when (playerName == turnPlayerName) $ do
+            card <- playAlongStrategy'
+            Writer.tell [PlayCard playerName card]
+
+        _ -> return ()
+    return (playAlongPlayer playerName nextPlayerState)
+-}
+
 makePlayer :: PlayerName -> PlayerStrategy -> Player
 makePlayer playerName strategy =
-  Player playerName $ strategyPlayer playerName strategy emptyPlayerState
+  strategyPlayer playerName strategy emptyPlayerState
 
-strategyPlayer :: PlayerName -> PlayerStrategy -> PlayerState -> PlayerEventProcessor
+strategyPlayer :: PlayerName -> PlayerStrategy -> PlayerState -> Player
 strategyPlayer playerName strategy playerState =
-  PlayerEventProcessor $ \ event -> do
+  Player playerName $ \ event -> do
     nextPlayerState <- flip State.execStateT playerState $ do
       playerProcessGameEventM playerName event
       playerState <- State.get
@@ -336,61 +305,6 @@ strategyPlayer playerName strategy playerState =
 
     return (strategyPlayer playerName strategy nextPlayerState)
 
-{-
-playAlongPlayer :: PlayerName -> PlayerState -> PlayerEventProcessor
-playAlongPlayer playerName playerState =
-  PlayerEventProcessor $ \ event -> do
-    nextPlayerState <- flip State.execStateT playerState $ do
-      playerProcessGameEventM playerName event
-      playerState <- State.get
-      case event of
-        HandsDealt _ ->
-          when (Set.member twoOfClubs (playerHand playerState)) $
-            Writer.tell [PlayCard playerName twoOfClubs]
-
-        PlayerTurn turnPlayerName ->
-          when (playerName == turnPlayerName) $ do
-            card <- playAlongStrategy'
-            Writer.tell [PlayCard playerName card]
-
-        _ -> return ()
-    return (playAlongPlayer playerName nextPlayerState)
--}
-
-makePlayer' :: PlayerName -> PlayerStrategy -> Player'
-makePlayer' playerName strategy =
-  strategyPlayer' playerName strategy emptyPlayerState
-
-strategyPlayer' :: PlayerName -> PlayerStrategy -> PlayerState -> Player'
-strategyPlayer' playerName strategy playerState =
-  Player' playerName $ \ event -> do
-    nextPlayerState <- flip State.execStateT playerState $ do
-      playerProcessGameEventM playerName event
-      playerState <- State.get
-      case event of
-        HandsDealt _ ->
-          when (Set.member twoOfClubs (playerHand playerState)) $
-            Writer.tell [PlayCard playerName twoOfClubs]
-
-        PlayerTurn turnPlayerName ->
-          when (playerName == turnPlayerName) $ do
-            card <- chooseCard strategy
-            Writer.tell [PlayCard playerName card]
-
-        CardPlayed _ _ ->
-          return ()
-
-        TrickTaken _ _ ->
-          return ()
-
-        IllegalMove _ ->
-          return ()
-
-        GameOver ->
-          return ()
-
-    return (strategyPlayer' playerName strategy nextPlayerState)
-
 playAlongProcessEventM :: (MonadState PlayerState m, PlayerInterface m) => PlayerName -> GameEvent -> m ()
 playAlongProcessEventM playerName event =
   do playerProcessGameEventM playerName event
@@ -409,12 +323,12 @@ playAlongProcessEventM playerName event =
 
        _ -> return ()
 
-playAlongPlayer' :: PlayerName -> PlayerState -> Player'
-playAlongPlayer' playerName playerState =
+playAlongPlayer :: PlayerName -> PlayerState -> Player
+playAlongPlayer playerName playerState =
   let nextPlayerM event =
         do nextPlayerState <- State.execStateT (playAlongProcessEventM playerName event) playerState
-           return (playAlongPlayer' playerName nextPlayerState)
-  in Player' playerName nextPlayerM
+           return (playAlongPlayer playerName nextPlayerState)
+  in Player playerName nextPlayerM
 
 -- stupid robo player
 playAlongStrategy :: PlayerStrategy
@@ -474,7 +388,7 @@ playInteractive =
   liftIO $ putStrLn ("Pick a card (1-" ++ show ncards ++ ")")
   selected <- liftIO $ getNumber (1,ncards)
   return (myhand !! (selected - 1))
-      
+
 playerMike = makePlayer "Mike" playAlongStrategy
 playerPeter = makePlayer "Peter" playInteractive
 playerAnnette = makePlayer "Annette" playAlongStrategy
@@ -483,18 +397,4 @@ playerNicole = makePlayer "Nicole" playAlongStrategy
 start :: IO ()
 start = runGame [playerNicole, playerAnnette, playerPeter, playerMike]
 
-playerMike' = makePlayer' "Mike" playAlongStrategy
-playerPeter' = makePlayer' "Peter" playInteractive
-playerAnnette' = makePlayer' "Annette" playAlongStrategy
-playerNicole' = makePlayer' "Nicole" playAlongStrategy
-
-start' :: IO ()
-start' = runGame' [playerNicole', playerAnnette', playerPeter', playerMike']
-
-{-
-remote: 
-remote: Create a pull request for 'peters-alt' on GitHub by visiting:        
-remote:      https://github.com/funktionale-programmierung/java-magazin-2019/pull/new/peters-alt        
-remote: 
--}
 
