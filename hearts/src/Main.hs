@@ -1,5 +1,7 @@
 module Main where
 
+import qualified Gameplay
+
 main :: IO ()
-main = do
-  putStrLn "hello world"
+main = 
+  Gameplay.gameInteractive

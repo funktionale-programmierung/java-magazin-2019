@@ -1,3 +1,5 @@
+**/*.pdf
+**/stack.yaml.lock
 *~
 hearts/.ghc*
 hearts/cabal.project.local
